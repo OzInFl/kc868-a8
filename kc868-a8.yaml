@@ -18,7 +18,7 @@ dashboard_import:
   package_import_url: github://hzkincony/kc868-a8/kc868-a8.yaml@main
 
 ota:
-  password: ""
+  password: "bobthebuilder"
 
 # I2C / ETH as you had them
 i2c:
