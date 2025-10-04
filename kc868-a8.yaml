@@ -19,6 +19,7 @@ dashboard_import:
 
 ota:
   password: "bobthebuilder"
+  platform: esphome
 
 # I2C / ETH as you had them
 i2c:
