@@ -46,7 +46,7 @@ pcf8574:
 switch:
   - platform: gpio
     id: relay1
-    name: "light1"
+    name: "relay1"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 0
@@ -55,7 +55,7 @@ switch:
 
   - platform: gpio
     id: relay2
-    name: "light2"
+    name: "relay2"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 1
@@ -64,7 +64,7 @@ switch:
 
   - platform: gpio
     id: relay3
-    name: "light3"
+    name: "relay3"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 2
@@ -73,7 +73,7 @@ switch:
 
   - platform: gpio
     id: relay4
-    name: "light4"
+    name: "relay4"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 3
@@ -82,7 +82,7 @@ switch:
 
   - platform: gpio
     id: relay5
-    name: "light5"
+    name: "relay5"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 4
@@ -91,7 +91,7 @@ switch:
 
   - platform: gpio
     id: relay6
-    name: "light6"
+    name: "relay6"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 5
@@ -100,7 +100,7 @@ switch:
 
   - platform: gpio
     id: relay7
-    name: "light7"
+    name: "relay7"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 6
@@ -109,7 +109,7 @@ switch:
 
   - platform: gpio
     id: relay8
-    name: "light8"
+    name: "relay8"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 7
