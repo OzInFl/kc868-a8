@@ -161,7 +161,7 @@ binary_sensor:
       - delayed_on_off: 20ms
     on_press:
       - switch.turn_on: relay3
-      - delay: 500ms
+      - delay: 10000ms
       - switch.turn_off: relay3
 
   # Inputs 4–8 (no actions yet—copy one of the patterns above if you want)
