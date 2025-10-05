@@ -78,7 +78,7 @@ switch:
       pcf8574: pcf8574_hub_out_1
       number: 3
       mode: OUTPUT
-      inverted: true
+      inverted: false
 
   - platform: gpio
     id: relay5
