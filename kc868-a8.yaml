@@ -18,10 +18,10 @@ dashboard_import:
   package_import_url: github://hzkincony/kc868-a8/kc868-a8.yaml@main
 
 ota:
-  password: "bobthebuilder"
-  platform: esphome
+  - platform: esphome
+    password: "bobthebuilder"
 
-# I2C / ETH as you had them
+# I2C / ETH
 i2c:
   sda: 4
   scl: 5
@@ -42,7 +42,7 @@ pcf8574:
   - id: pcf8574_hub_in_1    # inputs 1–8
     address: 0x22
 
-# Relays (give each one an id so inputs can reference them)
+# Relays
 switch:
   - platform: gpio
     id: relay1
@@ -78,7 +78,7 @@ switch:
       pcf8574: pcf8574_hub_out_1
       number: 3
       mode: OUTPUT
-      inverted: false
+      inverted: true
 
   - platform: gpio
     id: relay5
@@ -116,14 +116,13 @@ switch:
       mode: OUTPUT
       inverted: true
 
-# Inputs with debouncing + automations
-binary_sensor:
+# ---- ANALOG INPUT A1 → Relay1 with 2.0 V threshold (with hysteresis) ----
 sensor:
   - platform: adc
     id: a1_volts
     name: "A1 Voltage"
     pin: GPIO34           # KC868-A8 analog input A1
-    attenuation: 11db     # ESP32 ADC range (see note)
+    attenuation: 11db     # extend ESP32 ADC range
     update_interval: 300ms
     filters:
       # smooth a bit
@@ -131,7 +130,7 @@ sensor:
           window_size: 5
           send_every: 2
           send_first_at: 1
-      # board front-end scales 0–5V down to ~0–3.3V → map back to terminal volts
+      # board front-end scales 0–5 V down to ~0–3.3 V → map back to terminal volts
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
@@ -154,6 +153,8 @@ sensor:
               then:
                 - switch.turn_off: relay1
 
+# ---- Digital inputs with debouncing + automations ----
+binary_sensor:
   # Input1: TOGGLE Relay1 on each active edge
   - platform: gpio
     id: input1
@@ -184,7 +185,7 @@ sensor:
     on_release:
       - switch.turn_off: relay2
 
-  # Input3: PULSE Relay3 for 500 ms when pressed
+  # Input3: PULSE Relay3 for 10 s when pressed
   - platform: gpio
     id: input3
     name: "input3"
@@ -200,7 +201,7 @@ sensor:
       - delay: 10000ms
       - switch.turn_off: relay3
 
-  # Inputs 4–8 (no actions yet—copy one of the patterns above if you want)
+  # Inputs 4–8 (no actions yet)
   - platform: gpio
     id: input4
     name: "input4"
@@ -255,6 +256,10 @@ sensor:
       inverted: true
     filters:
       - delayed_on_off: 20ms
+
+# Enable logging / API
+logger:
+api:
 
       
 
