@@ -35,116 +35,166 @@ ethernet:
   clk_mode: GPIO17_OUT
   phy_addr: 0
 
-# PCF8574 expanders (outputs at 0x24, inputs at 0x22)
+# -------------------- PCF8574 expanders --------------------
 pcf8574:
-  - id: pcf8574_hub_out_1   # outputs 1–8
+  - id: pcf8574_hub_out_1   # outputs 1–8 (relays)
     address: 0x24
-  - id: pcf8574_hub_in_1    # inputs 1–8
+  - id: pcf8574_hub_in_1    # inputs 1–8 (dry contacts)
     address: 0x22
 
-# Relays
+# -------------------- Relays (active-low) --------------------
 switch:
   - platform: gpio
     id: relay1
     name: "relay1"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 0
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 0, inverted: true }
 
   - platform: gpio
     id: relay2
     name: "relay2"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 1
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 1, inverted: true }
 
   - platform: gpio
     id: relay3
     name: "relay3"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 2
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 2, inverted: true }
 
   - platform: gpio
     id: relay4
     name: "relay4"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 3
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 3, inverted: true }
 
   - platform: gpio
     id: relay5
     name: "relay5"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 4
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 4, inverted: true }
 
   - platform: gpio
     id: relay6
     name: "relay6"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 5
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 5, inverted: true }
 
   - platform: gpio
     id: relay7
     name: "relay7"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 6
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 6, inverted: true }
 
   - platform: gpio
-    id: relay8
+    id: relay8        # <— used as "LEARN MODE" indicator
     name: "relay8"
-    pin:
-      pcf8574: pcf8574_hub_out_1
-      number: 7
-      mode: OUTPUT
-      inverted: true
+    pin: { pcf8574: pcf8574_hub_out_1, number: 7, inverted: true }
 
-# ---- ANALOG INPUT A1 → Relay1 with 2.0 V threshold (with hysteresis) ----
+# -------------------- 433 MHz RF --------------------
+remote_transmitter:
+  pin: GPIO15          # 433 TX
+  carrier_duty_percent: 100%   # OOK modules: drive line directly
+  id: rf_tx
+
+remote_receiver:
+  pin: GPIO2           # 433 RX
+  dump:
+    - rc_switch        # print rc_switch codes in logs
+  tolerance: 60%       # more forgiving for cheap remotes
+  filter: 4us
+  idle: 4ms
+  on_rc_switch:
+    - if:
+        condition:
+          lambda: 'return id(learn_mode);'
+        then:
+          - lambda: |-
+              id(learned_code)  = x.code;
+              id(learned_proto) = x.protocol;
+              id(learned_bits)  = x.bitlength;
+              id(learn_mode) = false;
+          - switch.turn_off: relay8
+          - text_sensor.template.publish:
+              id: learned_summary
+              state: !lambda |-
+                char buf[96];
+                sprintf(buf, "code=%llu proto=%u bits=%u",
+                        (unsigned long long) id(learned_code),
+                        (unsigned) id(learned_proto),
+                        (unsigned) id(learned_bits));
+                return std::string(buf);
+
+# Keep the learned code across reboots
+globals:
+  - id: learned_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: learned_proto
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: learned_bits
+    type: int
+    restore_value: true
+    initial_value: '0'
+  - id: learn_mode
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+
+# A small helper to time out learning after 15 s
+script:
+  - id: start_learn_window
+    mode: restart
+    then:
+      - lambda: 'id(learn_mode) = true;'
+      - switch.turn_on: relay8
+      - delay: 15s
+      - if:
+          condition:
+            lambda: 'return id(learn_mode);'
+          then:
+            - lambda: 'id(learn_mode) = false;'
+            - switch.turn_off: relay8
+
+# Expose the learned code for sanity checks
+text_sensor:
+  - platform: template
+    id: learned_summary
+    name: "433 Learned (code/proto/bits)"
+    update_interval: never
+
+# Optional test button in web UI to transmit learned code
+button:
+  - platform: template
+    name: "Transmit learned 433"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(learned_code) != 0;'
+          then:
+            - remote_transmitter.transmit_rc_switch:
+                code: !lambda "return id(learned_code);"
+                protocol: !lambda "return id(learned_proto) > 0 ? id(learned_proto) : 1;"
+                repeat: { times: 5, wait_time: 0s }
+
+# -------------------- Analog → Relay / RF logic --------------------
 sensor:
+  # A1 (GPIO34): controls Relay1 with 2.0 V threshold + hysteresis
   - platform: adc
     id: a1_volts
     name: "A1 Voltage"
-    pin: GPIO34           # KC868-A8 analog input A1
-    attenuation: 11db     # extend ESP32 ADC range
+    pin: GPIO34
+    attenuation: 11db
     update_interval: 300ms
     filters:
-      # smooth a bit
-      - median:
-          window_size: 5
-          send_every: 2
-          send_first_at: 1
-      # board front-end scales 0–5 V down to ~0–3.3 V → map back to terminal volts
+      - median: { window_size: 5, send_every: 2, send_first_at: 1 }
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
     on_value_range:
-      # turn ON above ~2.00 V (with +50 mV hysteresis)
       - above: 2.05
         then:
           - if:
               condition:
-                not:
-                  switch.is_on: relay1
+                not: { switch.is_on: relay1 }
               then:
                 - switch.turn_on: relay1
-      # turn OFF below ~2.00 V (with -50 mV hysteresis)
       - below: 1.95
         then:
           - if:
@@ -153,110 +203,87 @@ sensor:
               then:
                 - switch.turn_off: relay1
 
-# ---- Digital inputs with debouncing + automations ----
+  # A2 (GPIO35): when > ~2.0 V, transmit the learned 433 code (5x)
+  - platform: adc
+    id: a2_volts
+    name: "A2 Voltage"
+    pin: GPIO35
+    attenuation: 11db
+    update_interval: 300ms
+    filters:
+      - median: { window_size: 5, send_every: 2, send_first_at: 1 }
+      - calibrate_linear:
+          - 0.00 -> 0.00
+          - 3.30 -> 5.00
+    on_value_range:
+      - above: 2.05
+        then:
+          - if:
+              condition:
+                lambda: 'return id(learned_code) != 0;'
+              then:
+                - remote_transmitter.transmit_rc_switch:
+                    code: !lambda "return id(learned_code);"
+                    protocol: !lambda "return id(learned_proto) > 0 ? id(learned_proto) : 1;"
+                    repeat: { times: 5, wait_time: 0s }
+              else:
+                - logger.log: "No 433 code learned yet (press DI1 to learn)."
+
+# -------------------- Digital inputs --------------------
 binary_sensor:
-  # Input1: TOGGLE Relay1 on each active edge
+  # DI1: press to enter LEARN MODE (replaces old toggle action)
   - platform: gpio
     id: input1
-    name: "input1"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 0
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
+    name: "input1 (learn RF)"
+    pin: { pcf8574: pcf8574_hub_in_1, number: 0, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
     on_press:
-      - switch.toggle: relay1
+      - script.execute: start_learn_window
 
-  # Input2: MIRROR Relay2 (on when input on, off when input off)
+  # DI2..DI8: keep as-is / placeholders (copy patterns if needed)
   - platform: gpio
     id: input2
     name: "input2"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 1
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
-    on_press:
-      - switch.turn_on: relay2
-    on_release:
-      - switch.turn_off: relay2
+    pin: { pcf8574: pcf8574_hub_in_1, number: 1, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
-  # Input3: PULSE Relay3 for 10 s when pressed
   - platform: gpio
     id: input3
     name: "input3"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 2
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
-    on_press:
-      - switch.turn_on: relay3
-      - delay: 10000ms
-      - switch.turn_off: relay3
+    pin: { pcf8574: pcf8574_hub_in_1, number: 2, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
-  # Inputs 4–8 (no actions yet)
   - platform: gpio
     id: input4
     name: "input4"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 3
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
+    pin: { pcf8574: pcf8574_hub_in_1, number: 3, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
   - platform: gpio
     id: input5
     name: "input5"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 4
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
+    pin: { pcf8574: pcf8574_hub_in_1, number: 4, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
   - platform: gpio
     id: input6
     name: "input6"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 5
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
+    pin: { pcf8574: pcf8574_hub_in_1, number: 5, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
   - platform: gpio
     id: input7
     name: "input7"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 6
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
+    pin: { pcf8574: pcf8574_hub_in_1, number: 6, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
   - platform: gpio
     id: input8
     name: "input8"
-    pin:
-      pcf8574: pcf8574_hub_in_1
-      number: 7
-      mode: INPUT
-      inverted: true
-    filters:
-      - delayed_on_off: 20ms
+    pin: { pcf8574: pcf8574_hub_in_1, number: 7, inverted: true }
+    filters: [ delayed_on_off: 20ms ]
 
 # Enable logging / API
 logger:
+  level: DEBUG   # helpful while learning RF
 api:
