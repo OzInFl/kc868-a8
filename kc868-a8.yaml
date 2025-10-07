@@ -220,6 +220,43 @@ binary_sensor:
     filters:
       - delayed_on_off: 20ms
 
+      sensor:
+  - platform: adc
+    id: a1_volts
+    name: "A1 Voltage"
+    pin: GPIO34           # KC868-A8 analog input A1
+    attenuation: 11db     # ESP32 ADC range (see note)
+    update_interval: 300ms
+    filters:
+      # smooth a bit
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
+      # board front-end scales 0–5V down to ~0–3.3V → map back to terminal volts
+      - calibrate_linear:
+          - 0.00 -> 0.00
+          - 3.30 -> 5.00
+    on_value_range:
+      # turn ON above ~2.00 V (with +50 mV hysteresis)
+      - above: 2.05
+        then:
+          - if:
+              condition:
+                not:
+                  switch.is_on: relay1
+              then:
+                - switch.turn_on: relay1
+      # turn OFF below ~2.00 V (with -50 mV hysteresis)
+      - below: 1.95
+        then:
+          - if:
+              condition:
+                switch.is_on: relay1
+              then:
+                - switch.turn_off: relay1
+
+
 # Enable logging / API
 logger:
 api:
