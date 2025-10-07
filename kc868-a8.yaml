@@ -10,6 +10,8 @@ esphome:
 
 esp32:
   board: esp32dev
+  framework:
+    type: arduino
 
 web_server:
   port: 80
@@ -18,164 +20,197 @@ dashboard_import:
   package_import_url: github://hzkincony/kc868-a8/kc868-a8.yaml@main
 
 ota:
-  - platform: esphome
-    password: "bobthebuilder"
+  password: "bobthebuilder"
+  platform: esphome
 
-# I2C / ETH
+# I2C (board default pins)
 i2c:
   sda: 4
   scl: 5
   scan: true
   id: bus_a
 
+# Ethernet (LAN8720) - new style 'clk' (replaces deprecated clk_mode)
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
   mdio_pin: GPIO18
-  clk_mode: GPIO17_OUT
+  clk:
+    pin: GPIO17
+    mode: CLK_OUT
   phy_addr: 0
 
-# -------------------- PCF8574 expanders --------------------
+# 433 MHz RF
+remote_receiver:
+  pin: GPIO2               # KC868-A8 RF receiver
+  dump:
+    - rc_switch
+  tolerance: 50%
+  filter: 250us
+  idle: 4ms
+  on_rc_switch:
+    then:
+      - if:
+          condition:
+            lambda: |-
+              return id(is_learning);
+          then:
+            - lambda: |-
+                // Save numeric code & protocol
+                id(learned_code) = x.code;
+                id(learned_proto) = x.protocol;
+
+                // Heuristic for bit length: highest set bit (fallback to user-set/default)
+                uint8_t bits = 64 - __builtin_clzll(x.code);
+                if (bits == 0) bits = id(learned_bits);  // unlikely, but fallback
+                // Build exact-length bit string (pad with leading zeros)
+                std::string s;
+                s.reserve(bits);
+                for (int i = bits - 1; i >= 0; --i) {
+                  s.push_back((x.code & (1ULL << i)) ? '1' : '0');
+                }
+                id(learned_bits) = bits;
+                id(learned_bin) = s;
+
+                ESP_LOGI("rf", "Learned rc_switch: code=%llu proto=%d bits=%u bin=%s",
+                         id(learned_code), id(learned_proto), id(learned_bits), id(learned_bin).c_str());
+            - lambda: |-
+                id(is_learning) = false;
+            - switch.turn_off: relay8  # turn off "learning" indicator
+
+remote_transmitter:
+  pin: GPIO15              # KC868-A8 RF transmitter
+  carrier_duty_percent: 100%
+
+# Store learned RF
+globals:
+  - id: is_learning
+    type: bool
+    restore_value: no
+    initial_value: 'false'
+  - id: learned_code
+    type: uint64_t
+    restore_value: yes
+    initial_value: '0'
+  - id: learned_proto
+    type: int
+    restore_value: yes
+    initial_value: '1'
+  - id: learned_bits
+    type: uint8_t
+    restore_value: yes
+    initial_value: '24'
+  - id: learned_bin
+    type: std::string
+    restore_value: yes
+    initial_value: '""'
+
+# Optional: expose bits as a tweakable number in the UI (if leading zeros matter)
+number:
+  - platform: template
+    id: rc_bits
+    name: "433 Learned Bits"
+    min_value: 1
+    max_value: 64
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: 24
+    on_value:
+      then:
+        - lambda: |-
+            id(learned_bits) = (uint8_t) x;
+            // Rebuild bitstring from numeric code with new length
+            std::string s;
+            s.reserve(id(learned_bits));
+            for (int i = id(learned_bits) - 1; i >= 0; --i) {
+              s.push_back((id(learned_code) & (1ULL << i)) ? '1' : '0');
+            }
+            id(learned_bin) = s;
+
+# PCF8574 expanders (outputs at 0x24, inputs at 0x22)
 pcf8574:
-  - id: pcf8574_hub_out_1   # outputs 1–8 (relays)
+  - id: pcf8574_hub_out_1   # outputs 1–8
     address: 0x24
-  - id: pcf8574_hub_in_1    # inputs 1–8 (dry contacts)
+  - id: pcf8574_hub_in_1    # inputs 1–8
     address: 0x22
 
-# -------------------- Relays (active-low) --------------------
+# Relays
 switch:
   - platform: gpio
     id: relay1
     name: "relay1"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 0, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 0
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
     id: relay2
     name: "relay2"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 1, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 1
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
     id: relay3
     name: "relay3"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 2, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 2
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
     id: relay4
     name: "relay4"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 3, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 3
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
     id: relay5
     name: "relay5"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 4, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 4
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
     id: relay6
     name: "relay6"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 5, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 5
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
     id: relay7
     name: "relay7"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 6, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 6
+      mode: OUTPUT
+      inverted: true
 
   - platform: gpio
-    id: relay8        # <— used as "LEARN MODE" indicator
-    name: "relay8"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 7, inverted: true }
+    id: relay8
+    name: "relay8 (learning indicator)"
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 7
+      mode: OUTPUT
+      inverted: true
 
-# -------------------- 433 MHz RF --------------------
-remote_transmitter:
-  pin: GPIO15          # 433 TX
-  carrier_duty_percent: 100%   # OOK modules: drive line directly
-  id: rf_tx
-
-remote_receiver:
-  pin: GPIO2           # 433 RX
-  dump:
-    - rc_switch        # print rc_switch codes in logs
-  tolerance: 60%       # more forgiving for cheap remotes
-  filter: 4us
-  idle: 4ms
-  on_rc_switch:
-    - if:
-        condition:
-          lambda: 'return id(learn_mode);'
-        then:
-          - lambda: |-
-              id(learned_code)  = x.code;
-              id(learned_proto) = x.protocol;
-              id(learned_bits)  = x.bitlength;
-              id(learn_mode) = false;
-          - switch.turn_off: relay8
-          - text_sensor.template.publish:
-              id: learned_summary
-              state: !lambda |-
-                char buf[96];
-                sprintf(buf, "code=%llu proto=%u bits=%u",
-                        (unsigned long long) id(learned_code),
-                        (unsigned) id(learned_proto),
-                        (unsigned) id(learned_bits));
-                return std::string(buf);
-
-# Keep the learned code across reboots
-globals:
-  - id: learned_code
-    type: uint64_t
-    restore_value: true
-    initial_value: '0'
-  - id: learned_proto
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: learned_bits
-    type: int
-    restore_value: true
-    initial_value: '0'
-  - id: learn_mode
-    type: bool
-    restore_value: no
-    initial_value: 'false'
-
-# A small helper to time out learning after 15 s
-script:
-  - id: start_learn_window
-    mode: restart
-    then:
-      - lambda: 'id(learn_mode) = true;'
-      - switch.turn_on: relay8
-      - delay: 15s
-      - if:
-          condition:
-            lambda: 'return id(learn_mode);'
-          then:
-            - lambda: 'id(learn_mode) = false;'
-            - switch.turn_off: relay8
-
-# Expose the learned code for sanity checks
-text_sensor:
-  - platform: template
-    id: learned_summary
-    name: "433 Learned (code/proto/bits)"
-    update_interval: never
-
-# Optional test button in web UI to transmit learned code
-button:
-  - platform: template
-    name: "Transmit learned 433"
-    on_press:
-      - if:
-          condition:
-            lambda: 'return id(learned_code) != 0;'
-          then:
-            - remote_transmitter.transmit_rc_switch:
-                code: !lambda "return id(learned_code);"
-                protocol: !lambda "return id(learned_proto) > 0 ? id(learned_proto) : 1;"
-                repeat: { times: 5, wait_time: 0s }
-
-# -------------------- Analog → Relay / RF logic --------------------
+# A1 controls Relay1 with 2.0V threshold (hysteresis)
 sensor:
-  # A1 (GPIO34): controls Relay1 with 2.0 V threshold + hysteresis
   - platform: adc
     id: a1_volts
     name: "A1 Voltage"
@@ -183,7 +218,10 @@ sensor:
     attenuation: 11db
     update_interval: 300ms
     filters:
-      - median: { window_size: 5, send_every: 2, send_first_at: 1 }
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
@@ -192,7 +230,8 @@ sensor:
         then:
           - if:
               condition:
-                not: { switch.is_on: relay1 }
+                not:
+                  switch.is_on: relay1
               then:
                 - switch.turn_on: relay1
       - below: 1.95
@@ -203,7 +242,7 @@ sensor:
               then:
                 - switch.turn_off: relay1
 
-  # A2 (GPIO35): when > ~2.0 V, transmit the learned 433 code (5x)
+  # A2 triggers 433 transmit of learned code when above 2.0V (with throttle)
   - platform: adc
     id: a2_volts
     name: "A2 Voltage"
@@ -211,79 +250,157 @@ sensor:
     attenuation: 11db
     update_interval: 300ms
     filters:
-      - median: { window_size: 5, send_every: 2, send_first_at: 1 }
+      - throttle: 1s
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
     on_value_range:
       - above: 2.05
         then:
-          - if:
-              condition:
-                lambda: 'return id(learned_code) != 0;'
-              then:
-                - remote_transmitter.transmit_rc_switch:
-                    code: !lambda "return id(learned_code);"
-                    protocol: !lambda "return id(learned_proto) > 0 ? id(learned_proto) : 1;"
-                    repeat: { times: 5, wait_time: 0s }
-              else:
-                - logger.log: "No 433 code learned yet (press DI1 to learn)."
+          - script.execute: send_learned_rf
 
-# -------------------- Digital inputs --------------------
+# Digital inputs (PCF8574). Input1 enters learning mode.
 binary_sensor:
-  # DI1: press to enter LEARN MODE (replaces old toggle action)
   - platform: gpio
     id: input1
     name: "input1 (learn RF)"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 0, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 0
+      mode: INPUT
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
     on_press:
-      - script.execute: start_learn_window
+      - script.execute: start_learning
 
-  # DI2..DI8: keep as-is / placeholders (copy patterns if needed)
+  # (Keep others available without actions; add more automations if you like)
   - platform: gpio
     id: input2
     name: "input2"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 1, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 1
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
   - platform: gpio
     id: input3
     name: "input3"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 2, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 2
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
   - platform: gpio
     id: input4
     name: "input4"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 3, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 3
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
   - platform: gpio
     id: input5
     name: "input5"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 4, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 4
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
   - platform: gpio
     id: input6
     name: "input6"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 5, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 5
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
   - platform: gpio
     id: input7
     name: "input7"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 6, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 6
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
   - platform: gpio
     id: input8
     name: "input8"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 7, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 7
+      mode: INPUT
+      inverted: true
+    filters: [delayed_on_off: 20ms]
 
-# Enable logging / API
+# Test button to transmit the learned RF code on demand
+button:
+  - platform: template
+    name: "Transmit learned 433"
+    on_press:
+      - if:
+          condition:
+            lambda: 'return id(learned_bin).size() > 0;'
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: !lambda 'return id(learned_proto);'
+                repeat:
+                  times: 10
+                  wait_time: 0s
+          else:
+            - logger.log: "No learned RF code yet."
+
+# Scripts for learning and sending
+script:
+  - id: start_learning
+    mode: restart
+    then:
+      - lambda: |-
+          id(is_learning) = true;
+      - switch.turn_on: relay8
+      - logger.log: "Learning mode started (15s)..."
+      - delay: 15s
+      - if:
+          condition:
+            lambda: 'return id(is_learning);'
+          then:
+            - lambda: 'id(is_learning) = false;'
+            - switch.turn_off: relay8
+            - logger.log: "Learning timed out."
+
+  - id: send_learned_rf
+    mode: queued
+    then:
+      - if:
+          condition:
+            lambda: 'return id(learned_bin).size() > 0;'
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: !lambda 'return id(learned_proto);'
+                repeat:
+                  times: 10
+                  wait_time: 0s
+          else:
+            - logger.log: "Analog triggered, but no RF code learned yet."
+
+# Enable logging & HA API
 logger:
-  level: DEBUG   # helpful while learning RF
 api:
