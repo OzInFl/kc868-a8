@@ -42,7 +42,7 @@ ethernet:
 
 # ---------- 433 MHz RF ----------
 remote_receiver:
-  pin: GPIO2         # KC868-A8 RX
+  pin: GPIO2         # KC868-A8 RX (strap pin warning is OK here)
   dump:
     - rc_switch
   tolerance: 50%
@@ -56,14 +56,13 @@ remote_receiver:
               return id(is_learning);
           then:
             - lambda: |-
-                // Save numeric code
+                // Save numeric code and infer bit length
                 id(learned_code) = x.code;
-                // Infer bit length from code (keeps leading zeros via bitstring below)
                 uint8_t bits = 64 - __builtin_clzll(x.code);
                 if (bits == 0) bits = id(learned_bits);
                 id(learned_bits) = bits;
 
-                // Build exact bitstring (leading zeros preserved)
+                // Build exact bitstring (preserve leading zeros)
                 std::string s;
                 s.reserve(bits);
                 for (int i = bits - 1; i >= 0; --i) {
@@ -73,12 +72,11 @@ remote_receiver:
 
                 ESP_LOGI("rf", "Learned rc_switch: code=%llu bits=%u bin=%s",
                          id(learned_code), id(learned_bits), id(learned_bin).c_str());
-            - lambda: |-
-                id(is_learning) = false;
+            - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8  # indicator off
 
 remote_transmitter:
-  pin: GPIO15        # KC868-A8 TX
+  pin: GPIO15        # KC868-A8 TX (strap pin warning is OK here)
   carrier_duty_percent: 100%
 
 # Persist learned RF
@@ -178,7 +176,7 @@ sensor:
     id: a1_volts
     name: "A1 Voltage"
     pin: GPIO34
-    attenuation: 11db
+    attenuation: 12db
     update_interval: 300ms
     filters:
       - median: { window_size: 5, send_every: 2, send_first_at: 1 }
@@ -190,15 +188,13 @@ sensor:
       - above: 2.05
         then:
           - if:
-              condition:
-                not: { switch.is_on: relay1 }
+              condition: { not: { switch.is_on: relay1 } }
               then:
                 - switch.turn_on: relay1
       - below: 1.95
         then:
           - if:
-              condition:
-                switch.is_on: relay1
+              condition: { switch.is_on: relay1 }
               then:
                 - switch.turn_off: relay1
 
@@ -207,7 +203,7 @@ sensor:
     id: a2_volts
     name: "A2 Voltage"
     pin: GPIO35
-    attenuation: 11db
+    attenuation: 12db
     update_interval: 300ms
     filters:
       - throttle: 1s
@@ -284,15 +280,13 @@ button:
           then:
             - remote_transmitter.transmit_rc_switch_raw:
                 code: !lambda 'return id(learned_bin);'
-                # RC-Switch Protocol 1 timings
+                # RC-Switch Protocol 1 timings (integers)
                 protocol:
-                  pulse_length: 350us
+                  pulse_length: 350
                   sync: [1, 31]
                   zero: [1, 3]
                   one: [3, 1]
-                repeat:
-                  times: 10
-                  wait_time: 0s
+                repeat: 10
           else:
             - logger.log: "No learned RF code yet."
 
@@ -322,15 +316,12 @@ script:
           then:
             - remote_transmitter.transmit_rc_switch_raw:
                 code: !lambda 'return id(learned_bin);'
-                # RC-Switch Protocol 1 timings
                 protocol:
-                  pulse_length: 350us
+                  pulse_length: 350
                   sync: [1, 31]
                   zero: [1, 3]
                   one: [3, 1]
-                repeat:
-                  times: 10
-                  wait_time: 0s
+                repeat: 10
           else:
             - logger.log: "Analog triggered, but no RF code learned yet."
 
