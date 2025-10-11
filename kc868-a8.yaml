@@ -68,7 +68,8 @@ remote_receiver:
                 for (int i = bits - 1; i >= 0; --i) s.push_back((x.code & (1ULL << i)) ? '1' : '0');
                 id(learned_bin) = s;
                 id(learned_type) = std::string("rc_switch");
-                ESP_LOGI("rf", "Learned rc_switch: code=%llu bits=%u", id(learned_code), id(learned_bits));
+                ESP_LOGI("rf", "Learned rc_switch: code=%llu bits=%u",
+                         (unsigned long long) id(learned_code), id(learned_bits));
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
@@ -86,11 +87,13 @@ remote_receiver:
                 id(learned_raw).reserve(x.size());
                 for (auto v : x) id(learned_raw).push_back(v);
                 id(learned_type) = std::string("raw");
-                ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
+                ESP_LOGI("rf", "Learned RAW timings: count=%u",
+                         (unsigned) id(learned_raw).size());
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
 remote_transmitter:
+  id: rf_tx          # <— give it an id so we can call it from lambdas
   pin: GPIO15        # KC868-A8 TX (strap pin warning is expected)
   carrier_duty_percent: 100%
 
@@ -369,7 +372,7 @@ script:
           if (opt == "Raw") {
             if (!id(learned_raw).empty()) {
               ESP_LOGI("rf", "TX: RAW timings (%u pulses)", (unsigned) id(learned_raw).size());
-              id(remote_transmitter).transmit_raw(id(learned_raw));
+              id(rf_tx).transmit_raw(id(learned_raw));            // <— use rf_tx id
             } else {
               ESP_LOGW("rf", "No RAW timing learned.");
             }
@@ -403,11 +406,10 @@ script:
                    (unsigned) id(learned_bits), pl, rep, opt.c_str());
 
           for (int i = 0; i < rep; i++) {
-            id(remote_transmitter).transmit_rc_switch_raw(id(learned_bin), proto);
+            id(rf_tx).transmit_rc_switch_raw(id(learned_bin), proto);  # <— use rf_tx id
           }
 
 # Logging / API
 logger:
-  id: logger
-  level: DEBUG
+  level: DEBUG      # <— no id here anymore
 api:
