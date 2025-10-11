@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>KC868-A8 Control Panel</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121821;
+      --accent: #00d1ff;
+      --muted: #9fb0c3;
+      --text: #e6edf3;
+      --danger: #ff477e;
+      --ok: #32d296;
+      --warn: #ffcc00;
+      --card-radius: 18px;
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      background: radial-gradient(1200px 600px at 15% 0%, #0f1622 0%, #0b0f14 60%, #0a0d12 100%);
+      color: var(--text);
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    header {
+      padding: 28px 20px 10px;
+      display: grid;
+      gap: 14px;
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .title .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--warn);
+      box-shadow: 0 0 10px var(--warn);
+    }
+    .row {
+      display: flex; flex-wrap: wrap; gap: 10px;
+      align-items: center;
+    }
+    input[type="text"] {
+      background: #0f1520; color: var(--text); border: 1px solid #1d2836;
+      padding: 10px 12px; border-radius: 12px; min-width: 280px;
+      outline: none;
+    }
+    button, .btn {
+      background: linear-gradient(135deg, #0e1c28, #142335);
+      color: var(--text); border: 1px solid #213246;
+      padding: 10px 14px; border-radius: 12px; cursor: pointer;
+      transition: transform .06s ease, box-shadow .2s ease, border .2s ease;
+    }
+    button:hover { transform: translateY(-1px); border-color: #2f4863; box-shadow: var(--shadow); }
+    .btn-accent { border-color: #125a6c; background: linear-gradient(135deg, #0e1f2a, #0a2f3b); color: #bfefff; }
+    .btn-danger { border-color: #5a2234; background: linear-gradient(135deg, #2a0e17, #3b0a1a); color: #ffc7d9; }
+    main {
+      padding: 14px 20px 40px;
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));
+      border: 1px solid #1a2431; border-radius: var(--card-radius);
+      padding: 16px; box-shadow: var(--shadow);
+      position: relative; overflow: hidden;
+    }
+    .card h2 {
+      margin: 0 0 12px; font-size: 16px; font-weight: 700; color: #cfe1f7;
+      letter-spacing: 0.4px;
+    }
+    .grid {
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    }
+    .toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #0f1520; border: 1px solid #1b2635; border-radius: 12px; padding: 10px 12px;
+    }
+    .toggle .label { color: var(--muted); font-size: 13px; }
+    .switch {
+      appearance: none; width: 46px; height: 26px; border-radius: 22px; position: relative; outline: none;
+      background: #1b2532; border: 1px solid #2a3a51; cursor: pointer; transition: background .15s ease;
+    }
+    .switch:checked { background: #0f2d3a; border-color: #1e5f73; }
+    .switch::after {
+      content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%;
+      background: linear-gradient(180deg, #dff7ff, #a0d1df);
+      box-shadow: 0 2px 6px rgba(0,0,0,.35);
+      transform: translateX(0); transition: transform .15s ease;
+    }
+    .switch:checked::after { transform: translateX(20px); }
+    .kv { display: grid; grid-template-columns: 1fr auto; gap: 8px; font-size: 14px; }
+    .muted { color: var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+    .rowbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+    .slider {
+      display: grid; gap: 6px; background: #0f1520; border: 1px solid #1b2635; border-radius: 12px; padding: 10px 12px;
+    }
+    input[type="range"] { width: 100%; }
+    select {
+      background: #0f1520; color: var(--text); border: 1px solid #1d2836;
+      padding: 8px 10px; border-radius: 10px; min-width: 140px; outline: none;
+    }
+    .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .pill {
+      font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid #2a3a51; color: #b4c7da;
+      background: #0f1520;
+    }
+    footer { padding: 20px; text-align: center; color: #89a2bb; font-size: 12px; }
+    .success { color: var(--ok); }
+    .warn { color: var(--warn); }
+    .danger { color: var(--danger); }
+    .statusline { font-size: 13px; color: #b4c7da; }
+    .hr { height: 1px; background: linear-gradient(90deg, transparent, #223044, transparent); margin: 12px 0; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span class="dot" id="netDot" title="connection"></span>
+      KC868-A8 Control Panel
+      <span class="pill">ESPHome</span>
+    </div>
+    <div class="row">
+      <input id="ip" type="text" placeholder="Device IP, e.g. 192.168.1.118" />
+      <button id="connect" class="btn-accent">Connect</button>
+      <button id="refresh">Refresh</button>
+      <span id="status" class="statusline">Idle</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- Relays -->
+    <section class="card">
+      <h2>Relays</h2>
+      <div class="grid" id="relays">
+        <!-- Filled by JS -->
+      </div>
+    </section>
+
+    <!-- Inputs + Sensors -->
+    <section class="card">
+      <h2>Inputs &amp; Sensors</h2>
+      <div class="kv"><span class="muted">input1 (learn)</span><span id="in1" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input2</span><span id="in2" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input3</span><span id="in3" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input4</span><span id="in4" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input5</span><span id="in5" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input6</span><span id="in6" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input7</span><span id="in7" class="mono">—</span></div>
+      <div class="kv"><span class="muted">input8</span><span id="in8" class="mono">—</span></div>
+      <div class="hr"></div>
+      <div class="kv"><span class="muted">A1 Voltage</span><span id="a1" class="mono">—</span></div>
+      <div class="kv"><span class="muted">A2 Voltage</span><span id="a2" class="mono">—</span></div>
+    </section>
+
+    <!-- RF Controls -->
+    <section class="card">
+      <h2>RF Controls</h2>
+      <div class="inline">
+        <label class="muted">Protocol</label>
+        <select id="rf_protocol_select">
+          <option>Auto (rc_switch)</option>
+          <option>Protocol 1</option>
+          <option>Protocol 2</option>
+          <option>Protocol 3</option>
+          <option>Protocol 4</option>
+          <option>Protocol 5</option>
+          <option>Protocol 6</option>
+          <option>Raw</option>
+        </select>
+        <label class="muted">Pulse (µs)</label>
+        <input id="rf_pulse_len" type="number" min="200" max="600" step="10" value="350" style="width: 100px;">
+        <label class="muted">Repeat</label>
+        <input id="rf_repeat" type="number" min="1" max="30" step="1" value="10" style="width: 80px;">
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="grid">
+        <div class="slider">
+          <div class="muted">RF Min Bits <span id="rf_min_bits_val" class="mono"></span></div>
+          <input id="rf_min_bits" type="range" min="1" max="64" step="1" value="20">
+        </div>
+        <div class="slider">
+          <div class="muted">RF Min RAW Timings <span id="rf_min_raw_timings_val" class="mono"></span></div>
+          <input id="rf_min_raw_timings" type="range" min="0" max="200" step="5" value="40">
+        </div>
+        <div class="slider">
+          <div class="muted">RF Quiet (ms) <span id="rf_quiet_ms_val" class="mono"></span></div>
+          <input id="rf_quiet_ms" type="range" min="0" max="2000" step="50" value="200">
+        </div>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="inline">
+        <label class="muted">Slot</label>
+        <input id="slot_select" type="number" min="1" max="16" step="1" value="1" style="width: 80px;">
+        <button id="btn_start_learn" class="btn-accent">Start Learning</button>
+        <button id="btn_tx_learned">TX Learned</button>
+        <button id="btn_save_slot">Save → Slot</button>
+        <button id="btn_tx_slot">TX Slot</button>
+        <button id="btn_clear_slot" class="btn-danger">Clear Slot</button>
+        <button id="btn_learn_to_slot">Learn→Slot (15s)</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="kv"><span class="muted">Learned</span><span id="learned_status" class="mono">—</span></div>
+      <div class="hr"></div>
+      <div id="slots" class="grid"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Pro tip: if a control is missing, set the correct device IP and click “Refresh”.</span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
