@@ -25,61 +25,74 @@ preferences:
 web_server:
   port: 80
   include_internal: true
-  on_request:
-    - lambda: |-
-        std::string path = request->url()->path();
+  routes:
+    - uri: /
+      method: GET
+      handler: !lambda |-
+        const char* html =
+          "<!doctype html>"
+          "<html><head><meta charset='utf-8'>"
+          "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+          "<title>KC868-A8 UI</title>"
+          "<style>"
+          "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b0f17;color:#e5e7eb;margin:0}"
+          "header{padding:12px 16px;border-bottom:1px solid #1f2937}h1{margin:0;font-size:18px}"
+          "main{padding:16px}button,input,select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin:4px}"
+          "</style>"
+          "</head><body>"
+          "<header><h1>KC868-A8 · Local UI</h1></header>"
+          "<main>"
+          "<h3>Relays</h3>"
+          "<div>"
+            "<button onclick=\"new Image().src='/switch/relay1/toggle?_='+Date.now()\">Relay 1 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay2/toggle?_='+Date.now()\">Relay 2 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay3/toggle?_='+Date.now()\">Relay 3 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay4/toggle?_='+Date.now()\">Relay 4 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay5/toggle?_='+Date.now()\">Relay 5 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay6/toggle?_='+Date.now()\">Relay 6 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay7/toggle?_='+Date.now()\">Relay 7 Toggle</button>"
+            "<button onclick=\"new Image().src='/switch/relay8/toggle?_='+Date.now()\">Relay 8 Toggle</button>"
+          "</div>"
+          "<h3>RF</h3>"
+          "<div>"
+            "<button onclick=\"new Image().src('/button/start_rf_learning_ui/press?_='+Date.now())\">Start Learning</button>"
+            "<button onclick=\"new Image().src('/button/transmit_learned_433/press?_='+Date.now())\">Transmit Learned</button>"
+            "<button onclick=\"new Image().src('/button/save_learned_slot/press?_='+Date.now())\">Save → Slot</button>"
+            "<button onclick=\"new Image().src('/button/transmit_slot/press?_='+Date.now())\">Transmit Slot</button>"
+            "<button onclick=\"new Image().src('/button/clear_slot/press?_='+Date.now())\">Clear Slot</button>"
+            "<button onclick=\"new Image().src('/button/learn_to_selected_slot/press?_='+Date.now())\">Learn→Save Slot</button>"
+          "</div>"
+          "<div>"
+            "Slot: <input id='slot' type='number' min='1' max='16' value='1' oninput=\"new Image().src('/number/slot_select/set?value='+this.value+'&_='+Date.now())\"> "
+            "Repeat: <input id='rep' type='number' min='1' max='30' value='10' oninput=\"new Image().src('/number/rf_repeat/set?value='+this.value+'&_='+Date.now())\"> "
+            "Pulse(µs): <input id='pls' type='number' min='200' max='600' step='10' value='350' oninput=\"new Image().src('/number/rf_pulse_len/set?value='+this.value+'&_='+Date.now())\"> "
+            "Protocol: <select id='proto' onchange=\"new Image().src('/select/rf_protocol_select/set?option='+encodeURIComponent(this.value)+'&_='+Date.now())\">"
+              "<option>Auto (rc_switch)</option><option>Protocol 1</option><option>Protocol 2</option>"
+              "<option>Protocol 3</option><option>Protocol 4</option><option>Protocol 5</option>"
+              "<option>Protocol 6</option><option>Raw</option>"
+            "</select>"
+          "</div>"
+          "<div>"
+            "Min Bits: <input type='range' min='1' max='64' value='20' oninput=\"new Image().src('/number/rf_min_bits/set?value='+this.value+'&_='+Date.now())\"> "
+            "Min RAW: <input type='range' min='0' max='200' step='5' value='40' oninput=\"new Image().src('/number/rf_min_raw_timings/set?value='+this.value+'&_='+Date.now())\"> "
+            "Quiet(ms): <input type='range' min='0' max='2000' step='50' value='200' oninput=\"new Image().src('/number/rf_quiet_ms/set?value='+this.value+'&_='+Date.now())\"> "
+          "</div>"
+          "</main></body></html>";
+        request->send(200, "text/html; charset=utf-8", html);
 
-        if (path == "/" || path == "/ui") {
-          const char* html =
-            "<!doctype html>"
-            "<html><head><meta charset='utf-8'>"
-            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-            "<title>KC868-A8 UI</title>"
-            "<style>"
-            "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b0f17;color:#e5e7eb;margin:0}"
-            "header{padding:12px 16px;border-bottom:1px solid #1f2937}h1{margin:0;font-size:18px}"
-            "main{padding:16px}button,input,select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin:4px}"
-            "</style>"
-            "</head><body>"
-            "<header><h1>KC868-A8 · Local UI</h1></header>"
-            "<main>"
-            "<h3>Relays</h3>"
-            "<div>"
-              "<button onclick=\"new Image().src='/switch/relay1/toggle?_='+Date.now()\">Relay 1 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay2/toggle?_='+Date.now()\">Relay 2 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay3/toggle?_='+Date.now()\">Relay 3 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay4/toggle?_='+Date.now()\">Relay 4 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay5/toggle?_='+Date.now()\">Relay 5 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay6/toggle?_='+Date.now()\">Relay 6 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay7/toggle?_='+Date.now()\">Relay 7 Toggle</button>"
-              "<button onclick=\"new Image().src='/switch/relay8/toggle?_='+Date.now()\">Relay 8 Toggle</button>"
-            "</div>"
-            "<h3>RF</h3>"
-            "<div>"
-              "<button onclick=\"new Image().src='/button/start_rf_learning_ui/press?_='+Date.now()\">Start Learning</button>"
-              "<button onclick=\"new Image().src='/button/transmit_learned_433/press?_='+Date.now()\">Transmit Learned</button>"
-              "<button onclick=\"new Image().src='/button/save_learned_slot/press?_='+Date.now()\">Save → Slot</button>"
-              "<button onclick=\"new Image().src='/button/transmit_slot/press?_='+Date.now()\">Transmit Slot</button>"
-              "<button onclick=\"new Image().src='/button/clear_slot/press?_='+Date.now()\">Clear Slot</button>"
-              "<button onclick=\"new Image().src='/button/learn_to_selected_slot/press?_='+Date.now()\">Learn→Save Slot</button>"
-            "</div>"
-            "<div>"
-              "Slot: <input id='slot' type='number' min='1' max='16' value='1' oninput=\"new Image().src('/number/slot_select/set?value='+this.value+'&_='+Date.now())\"> "
-              "Repeat: <input id='rep' type='number' min='1' max='30' value='10' oninput=\"new Image().src('/number/rf_repeat/set?value='+this.value+'&_='+Date.now())\"> "
-              "Pulse(µs): <input id='pls' type='number' min='200' max='600' step='10' value='350' oninput=\"new Image().src('/number/rf_pulse_len/set?value='+this.value+'&_='+Date.now())\"> "
-              "Protocol: <select id='proto' onchange=\"new Image().src('/select/rf_protocol_select/set?option='+encodeURIComponent(this.value)+'&_='+Date.now())\">"
-                "<option>Auto (rc_switch)</option><option>Protocol 1</option><option>Protocol 2</option>"
-                "<option>Protocol 3</option><option>Protocol 4</option><option>Protocol 5</option>"
-                "<option>Protocol 6</option><option>Raw</option>"
-              "</select>"
-            "</div>"
-            "<div>"
-              "Min Bits: <input type='range' min='1' max='64' value='20' oninput=\"new Image().src('/number/rf_min_bits/set?value='+this.value+'&_='+Date.now())\"> "
-              "Min RAW: <input type='range' min='0' max='200' step='5' value='40' oninput=\"new Image().src('/number/rf_min_raw_timings/set?value='+this.value+'&_='+Date.now())\"> "
-              "Quiet(ms): <input type='range' min='0' max='2000' step='50' value='200' oninput=\"new Image().src('/number/rf_quiet_ms/set?value='+this.value+'&_='+Date.now())\"> "
-            "</div>"
-            "</main></body></html>";
-          request->send(200, "text/html; charset=utf-8", html);
+    - uri: /ui
+      method: GET
+      handler: !lambda |-
+        // Serve the same UI at /ui for convenience
+        const char* html =
+          "<!doctype html><html><head><meta charset='utf-8'>"
+          "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+          "<title>KC868-A8 UI</title></head><body>"
+          "<script>location.replace('/');</script>"
+          "If you see this, <a href='/'>click here</a>."
+          "</body></html>";
+        request->send(200, "text/html; charset=utf-8", html);
+
           return;
         }
         // Let other paths fall through to default handling.
