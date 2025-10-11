@@ -1,5 +1,6 @@
 substitutions:
-  name: hideaways
+  name: kc868-a8
+
 esphome:
   name: ${name}
   name_add_mac_suffix: true
@@ -84,17 +85,12 @@ remote_receiver:
   filter: 100us
   idle: 8ms
 
+  # Learn rc_switch when in learning mode + Protocol=Auto
   on_rc_switch:
     then:
-      # Learn rc_switch (with squelch)
       - if:
           condition:
             lambda: |-
-              uint8_t bits = 64 - __builtin_clzll(x.code);
-              if (bits < (uint8_t) id(rf_min_bits).state) return false;
-              uint32_t now = millis();
-              if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
-              id(last_rx_ms) = now;
               return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";
           then:
             - lambda: |-
@@ -112,26 +108,35 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # Runtime match (not learning) → pulse Relay2 for 10s (with squelch)
+      # Runtime match (not learning) → pulse Relay2 for 10s
       - if:
           condition:
             lambda: |-
               if (id(is_learning)) return false;
+
+              // Incoming bits and code
               uint8_t bits = 64 - __builtin_clzll(x.code);
-              if (bits < (uint8_t) id(rf_min_bits).state) return false;
-              uint32_t now = millis();
-              if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
-              id(last_rx_ms) = now;
-              auto match = [&](uint64_t c, uint8_t b){ return (c!=0 && b==bits && c==x.code); };
-              if (match(id(slot1_code), id(slot1_bits))) return true;
-              if (match(id(slot2_code), id(slot2_bits))) return true;
-              if (match(id(slot3_code), id(slot3_bits))) return true;
-              if (match(id(slot4_code), id(slot4_bits))) return true;
-              if (match(id(slot5_code), id(slot5_bits))) return true;
-              if (match(id(slot6_code), id(slot6_bits))) return true;
-              if (match(id(slot7_code), id(slot7_bits))) return true;
-              if (match(id(slot8_code), id(slot8_bits))) return true;
-              if (match(id(slot9_code), id(slot9_bits))) return true;
+              ESP_LOGD("rf", "rc_switch rx: code=%llu bits=%u",
+                       (unsigned long long) x.code, bits);
+
+              // Match helper: bits==0 in a slot = wildcard
+              auto match = [&](uint64_t c, uint8_t b){
+                if (c == 0) return false;
+                if (c != x.code) return false;
+                if (b == 0) return true;     // wildcard bit-length
+                return b == bits;
+              };
+
+              // Check all 16 slots
+              if (match(id(slot1_code),  id(slot1_bits)))  return true;
+              if (match(id(slot2_code),  id(slot2_bits)))  return true;
+              if (match(id(slot3_code),  id(slot3_bits)))  return true;
+              if (match(id(slot4_code),  id(slot4_bits)))  return true;
+              if (match(id(slot5_code),  id(slot5_bits)))  return true;
+              if (match(id(slot6_code),  id(slot6_bits)))  return true;
+              if (match(id(slot7_code),  id(slot7_bits)))  return true;
+              if (match(id(slot8_code),  id(slot8_bits)))  return true;
+              if (match(id(slot9_code),  id(slot9_bits)))  return true;
               if (match(id(slot10_code), id(slot10_bits))) return true;
               if (match(id(slot11_code), id(slot11_bits))) return true;
               if (match(id(slot12_code), id(slot12_bits))) return true;
@@ -139,6 +144,8 @@ remote_receiver:
               if (match(id(slot14_code), id(slot14_bits))) return true;
               if (match(id(slot15_code), id(slot15_bits))) return true;
               if (match(id(slot16_code), id(slot16_bits))) return true;
+
+              ESP_LOGD("rf", "rc_switch no slot matched.");
               return false;
           then:
             - logger.log: "Matched stored keyfob → Relay2 pulse (10s)"
@@ -146,6 +153,7 @@ remote_receiver:
             - delay: 10s
             - switch.turn_off: relay2
 
+  # Learn RAW when in learning mode + Protocol=Raw
   on_raw:
     then:
       - if:
@@ -153,10 +161,6 @@ remote_receiver:
             lambda: |-
               if (!id(is_learning)) return false;
               if (id(rf_protocol_select).state != "Raw") return false;
-              if ((int)x.size() < (int) id(rf_min_raw_timings).state) return false;
-              uint32_t now = millis();
-              if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
-              id(last_rx_ms) = now;
               return true;
           then:
             - lambda: |-
@@ -182,7 +186,6 @@ globals:
   - { id: learned_raw,      type: std::vector<int32_t>, restore_value: false, initial_value: 'std::vector<int32_t>()' }
   - { id: last_a1_logged,   type: float,                restore_value: false, initial_value: 'NAN' }
   - { id: last_a2_logged,   type: float,                restore_value: false, initial_value: 'NAN' }
-  - { id: last_rx_ms,       type: uint32_t,             restore_value: false, initial_value: '0' }
 
   - { id: slot1_code,  type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot2_code,  type: uint64_t, restore_value: true, initial_value: '0' }
@@ -236,7 +239,7 @@ select:
     initial_option: "Auto (rc_switch)"
     web_server:
       sorting_group_id: grp_rf_settings
-      sorting_weight: 70
+      sorting_weight: 40
 
 number:
   - platform: template
@@ -274,42 +277,6 @@ number:
     web_server:
       sorting_group_id: grp_rf_settings
       sorting_weight: 10
-
-  - platform: template
-    id: rf_min_bits
-    name: "Min Bits (learn/match)"
-    min_value: 1
-    max_value: 64
-    step: 1
-    optimistic: true
-    initial_value: 20
-    web_server:
-      sorting_group_id: grp_rf_settings
-      sorting_weight: 40
-
-  - platform: template
-    id: rf_min_raw_timings
-    name: "Min RAW Timings (learn)"
-    min_value: 0
-    max_value: 200
-    step: 5
-    optimistic: true
-    initial_value: 40
-    web_server:
-      sorting_group_id: grp_rf_settings
-      sorting_weight: 50
-
-  - platform: template
-    id: rf_quiet_ms
-    name: "Quiet Time (ms)"
-    min_value: 0
-    max_value: 2000
-    step: 50
-    optimistic: true
-    initial_value: 200
-    web_server:
-      sorting_group_id: grp_rf_settings
-      sorting_weight: 60
 
 text_sensor:
   - platform: template
@@ -358,7 +325,6 @@ switch:
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 1
-    # Relay2 is used for the 10s pulse when a stored fob is received
       inverted: true
     web_server:
       sorting_group_id: grp_relays
@@ -661,6 +627,36 @@ button:
     web_server:
       sorting_group_id: grp_rf_controls
       sorting_weight: 50
+
+  # Visible: dump all slots to logs (Advanced card)
+  - platform: template
+    id: dump_slots
+    name: "Dump RF Slots"
+    on_press:
+      - lambda: |-
+          auto dump = [&](int idx, uint64_t c, uint8_t b){
+            ESP_LOGI("rf", "Slot %02d: code=%llu bits=%u",
+                     idx, (unsigned long long)c, (unsigned)b);
+          };
+          dump( 1, id(slot1_code),  id(slot1_bits));
+          dump( 2, id(slot2_code),  id(slot2_bits));
+          dump( 3, id(slot3_code),  id(slot3_bits));
+          dump( 4, id(slot4_code),  id(slot4_bits));
+          dump( 5, id(slot5_code),  id(slot5_bits));
+          dump( 6, id(slot6_code),  id(slot6_bits));
+          dump( 7, id(slot7_code),  id(slot7_bits));
+          dump( 8, id(slot8_code),  id(slot8_bits));
+          dump( 9, id(slot9_code),  id(slot9_bits));
+          dump(10, id(slot10_code), id(slot10_bits));
+          dump(11, id(slot11_code), id(slot11_bits));
+          dump(12, id(slot12_code), id(slot12_bits));
+          dump(13, id(slot13_code), id(slot13_bits));
+          dump(14, id(slot14_code), id(slot14_bits));
+          dump(15, id(slot15_code), id(slot15_bits));
+          dump(16, id(slot16_code), id(slot16_bits));
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 10
 
   # Hidden debug helper
   - platform: template
