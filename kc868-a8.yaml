@@ -17,9 +17,11 @@ esp32:
   framework:
     type: arduino
 
-# -------------------------------------------------------------------
-# Web server + same-origin UI served at / and /ui and /ui.js
-# -------------------------------------------------------------------
+# Persist preferences more quickly so slot saves survive power loss
+preferences:
+  flash_write_interval: 5s
+
+# ---------------- Web server: minimal same-origin UI at /ui ----------------
 web_server:
   port: 80
   include_internal: true
@@ -27,210 +29,60 @@ web_server:
     - lambda: |-
         std::string path = request->url()->path();
 
-        // Serve UI HTML on / and /ui
         if (path == "/" || path == "/ui") {
-          static const char kHtml[] PROGMEM = R"HTML(
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>KC868-A8 Control</title>
-  <link rel="preconnect" href="/" />
-  <style>
-    :root { --bg:#0b0f17; --card:#111827; --text:#e5e7eb; --muted:#9ca3af; --accent:#60a5fa; --good:#10b981; --warn:#f59e0b; --bad:#ef4444; }
-    * { box-sizing: border-box; }
-    body { margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial,'Noto Sans',sans-serif; background:var(--bg); color:var(--text); }
-    header { padding:16px 20px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #1f2937; }
-    header h1 { margin:0; font-size:18px; letter-spacing:.4px; }
-    main { padding:20px; display:grid; grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
-    .card { background:var(--card); border:1px solid #1f2937; border-radius:16px; padding:16px; box-shadow: 0 10px 20px rgba(0,0,0,.25); }
-    .card h2 { margin:0 0 10px 0; font-size:14px; color:var(--muted); letter-spacing:.4px; text-transform:uppercase; }
-    .row { display:flex; gap:8px; flex-wrap:wrap; }
-    button, select, input[type="number"], input[type="range"] {
-      background:#0f172a; color:var(--text); border:1px solid #334155; border-radius:12px; padding:10px 12px;
-      font-size:14px; cursor:pointer; outline:none; transition:.15s; min-height:40px;
-    }
-    button:hover { border-color:var(--accent); box-shadow: 0 0 0 2px rgba(96,165,250,.2) inset; }
-    .pill { border-radius:999px; }
-    .ok { color: var(--good); }
-    .warn { color: var(--warn); }
-    .bad { color: var(--bad); }
-    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:8px; }
-    .full { grid-column: 1 / -1; }
-    .label { font-size:12px; color: var(--muted); margin-bottom:6px; }
-    .row input[type="range"] { width: 180px; }
-    footer { padding: 8px 20px 24px; color:var(--muted); font-size:12px; }
-    a { color: var(--accent); text-decoration: none; }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>KC868-A8 · Local Control UI</h1>
-    <div id="status" class="warn">checking…</div>
-  </header>
-
-  <main>
-    <section class="card">
-      <h2>Relays</h2>
-      <div class="grid">
-        <button onclick="ESPUI.relayToggle(1)">Relay 1 Toggle</button>
-        <button onclick="ESPUI.relayToggle(2)">Relay 2 Toggle</button>
-        <button onclick="ESPUI.relayToggle(3)">Relay 3 Toggle</button>
-        <button onclick="ESPUI.relayToggle(4)">Relay 4 Toggle</button>
-        <button onclick="ESPUI.relayToggle(5)">Relay 5 Toggle</button>
-        <button onclick="ESPUI.relayToggle(6)">Relay 6 Toggle</button>
-        <button onclick="ESPUI.relayToggle(7)">Relay 7 Toggle</button>
-        <button onclick="ESPUI.relayToggle(8)">Relay 8 Toggle</button>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>RF — Learning & Actions</h2>
-      <div class="row">
-        <button class="pill" onclick="ESPUI.startLearning()">Start Learning</button>
-        <button class="pill" onclick="ESPUI.txLearned()">Transmit Learned</button>
-        <button class="pill" onclick="ESPUI.saveSlot()">Save → Slot</button>
-        <button class="pill" onclick="ESPUI.txSlot()">Transmit Slot</button>
-        <button class="pill" onclick="ESPUI.clearSlot()">Clear Slot</button>
-        <button class="pill" onclick="ESPUI.learnToSlot()">Learn→Save Slot (15s)</button>
-        <button class="pill" onclick="ESPUI.logLearned()">Log Learned</button>
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <div class="label">Protocol</div>
-          <select id="proto" onchange="ESPUI.setProtocol(this.value)">
-            <option>Auto (rc_switch)</option>
-            <option>Protocol 1</option>
-            <option>Protocol 2</option>
-            <option>Protocol 3</option>
-            <option>Protocol 4</option>
-            <option>Protocol 5</option>
-            <option>Protocol 6</option>
-            <option>Raw</option>
-          </select>
-        </div>
-        <div>
-          <div class="label">Repeat</div>
-          <input type="number" min="1" max="30" value="10" oninput="ESPUI.setRepeat(this.value)">
-        </div>
-        <div>
-          <div class="label">Pulse (µs)</div>
-          <input type="number" min="200" max="600" step="10" value="350" oninput="ESPUI.setPulse(this.value)">
-        </div>
-        <div>
-          <div class="label">Slot</div>
-          <input type="number" min="1" max="16" value="1" oninput="ESPUI.setSlot(this.value)">
-        </div>
-      </div>
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <div class="label">Squelch: Min Bits</div>
-          <input type="range" min="1" max="64" value="20" oninput="ESPUI.setMinBits(this.value)">
-        </div>
-        <div>
-          <div class="label">Squelch: Min RAW Timings</div>
-          <input type="range" min="0" max="200" step="5" value="40" oninput="ESPUI.setMinRaw(this.value)">
-        </div>
-        <div>
-          <div class="label">Squelch: Quiet (ms)</div>
-          <input type="range" min="0" max="2000" step="50" value="200" oninput="ESPUI.setQuietMs(this.value)">
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Saved Codes (read-only here)</h2>
-      <div class="row">
-        <small>Use HA/ESPHome to view live slot sensors; we can extend this page later to poll same-origin.</small>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    Same-origin UI served by ESPHome. Endpoints called relative to this device.
-  </footer>
-
-  <script src="/ui.js"></script>
-</body>
-</html>
-          )HTML";
-          request->send(200, "text/html; charset=utf-8", kHtml);
+          const char* html =
+            "<!doctype html>"
+            "<html><head><meta charset='utf-8'>"
+            "<meta name='viewport' content='width=device-width,initial-scale=1'>"
+            "<title>KC868-A8 UI</title>"
+            "<style>"
+            "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b0f17;color:#e5e7eb;margin:0}"
+            "header{padding:12px 16px;border-bottom:1px solid #1f2937}h1{margin:0;font-size:18px}"
+            "main{padding:16px}button,input,select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin:4px}"
+            "</style>"
+            "</head><body>"
+            "<header><h1>KC868-A8 · Local UI</h1></header>"
+            "<main>"
+            "<h3>Relays</h3>"
+            "<div>"
+              "<button onclick=\"new Image().src='/switch/relay1/toggle?_='+Date.now()\">Relay 1 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay2/toggle?_='+Date.now()\">Relay 2 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay3/toggle?_='+Date.now()\">Relay 3 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay4/toggle?_='+Date.now()\">Relay 4 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay5/toggle?_='+Date.now()\">Relay 5 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay6/toggle?_='+Date.now()\">Relay 6 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay7/toggle?_='+Date.now()\">Relay 7 Toggle</button>"
+              "<button onclick=\"new Image().src='/switch/relay8/toggle?_='+Date.now()\">Relay 8 Toggle</button>"
+            "</div>"
+            "<h3>RF</h3>"
+            "<div>"
+              "<button onclick=\"new Image().src='/button/start_rf_learning_ui/press?_='+Date.now()\">Start Learning</button>"
+              "<button onclick=\"new Image().src='/button/transmit_learned_433/press?_='+Date.now()\">Transmit Learned</button>"
+              "<button onclick=\"new Image().src='/button/save_learned_slot/press?_='+Date.now()\">Save → Slot</button>"
+              "<button onclick=\"new Image().src='/button/transmit_slot/press?_='+Date.now()\">Transmit Slot</button>"
+              "<button onclick=\"new Image().src='/button/clear_slot/press?_='+Date.now()\">Clear Slot</button>"
+              "<button onclick=\"new Image().src='/button/learn_to_selected_slot/press?_='+Date.now()\">Learn→Save Slot</button>"
+            "</div>"
+            "<div>"
+              "Slot: <input id='slot' type='number' min='1' max='16' value='1' oninput=\"new Image().src('/number/slot_select/set?value='+this.value+'&_='+Date.now())\"> "
+              "Repeat: <input id='rep' type='number' min='1' max='30' value='10' oninput=\"new Image().src('/number/rf_repeat/set?value='+this.value+'&_='+Date.now())\"> "
+              "Pulse(µs): <input id='pls' type='number' min='200' max='600' step='10' value='350' oninput=\"new Image().src('/number/rf_pulse_len/set?value='+this.value+'&_='+Date.now())\"> "
+              "Protocol: <select id='proto' onchange=\"new Image().src('/select/rf_protocol_select/set?option='+encodeURIComponent(this.value)+'&_='+Date.now())\">"
+                "<option>Auto (rc_switch)</option><option>Protocol 1</option><option>Protocol 2</option>"
+                "<option>Protocol 3</option><option>Protocol 4</option><option>Protocol 5</option>"
+                "<option>Protocol 6</option><option>Raw</option>"
+              "</select>"
+            "</div>"
+            "<div>"
+              "Min Bits: <input type='range' min='1' max='64' value='20' oninput=\"new Image().src('/number/rf_min_bits/set?value='+this.value+'&_='+Date.now())\"> "
+              "Min RAW: <input type='range' min='0' max='200' step='5' value='40' oninput=\"new Image().src('/number/rf_min_raw_timings/set?value='+this.value+'&_='+Date.now())\"> "
+              "Quiet(ms): <input type='range' min='0' max='2000' step='50' value='200' oninput=\"new Image().src('/number/rf_quiet_ms/set?value='+this.value+'&_='+Date.now())\"> "
+            "</div>"
+            "</main></body></html>";
+          request->send(200, "text/html; charset=utf-8", html);
           return;
         }
-
-        // Serve JS
-        if (path == "/ui.js") {
-          static const char kJs[] PROGMEM = R"JS(
-// === no-CORS same-origin helpers (Image beacon) =========================
-function fireGet(path, timeoutMs = 4000, cb) {
-  const img = new Image();
-  let done = false;
-  const timer = setTimeout(() => {
-    if (done) return; done = true; cb && cb(false);
-  }, timeoutMs);
-  img.onload = () => { if (done) return; done = true; clearTimeout(timer); cb && cb(true); };
-  img.onerror = () => { if (done) return; done = true; clearTimeout(timer); cb && cb(false); };
-  img.src = `${path}${path.includes('?') ? '&' : '?'}_=${Date.now()}`;
-}
-
-// Status light (optional ping)
-(function(){
-  const el = document.getElementById('status');
-  fireGet('/', 2500, ok => {
-    if (!el) return;
-    el.textContent = ok ? 'online' : 'offline';
-    el.className = ok ? 'ok' : 'bad';
-  });
-})();
-
-// Relays
-window.ESPUI = {
-  relayToggle(n){ fireGet(`/switch/relay${n}/toggle`, 4000, ok => console.log('toggle', n, ok)); },
-  relayOn(n){ fireGet(`/switch/relay${n}?turn=on`, 4000, ok => console.log('on', n, ok)); },
-  relayOff(n){ fireGet(`/switch/relay${n}?turn=off`, 4000, ok => console.log('off', n, ok)); },
-
-  // RF buttons (match YAML button ids)
-  startLearning(){ fireGet(`/button/start_rf_learning_ui/press`, 4000, ok => console.log('learn', ok)); },
-  txLearned(){     fireGet(`/button/transmit_learned_433/press`, 4000, ok => console.log('tx learned', ok)); },
-  saveSlot(){      fireGet(`/button/save_learned_slot/press`, 4000, ok => console.log('save slot', ok)); },
-  txSlot(){        fireGet(`/button/transmit_slot/press`, 4000, ok => console.log('tx slot', ok)); },
-  clearSlot(){     fireGet(`/button/clear_slot/press`, 4000, ok => console.log('clear slot', ok)); },
-  learnToSlot(){   fireGet(`/button/learn_to_selected_slot/press`, 4000, ok => console.log('learn->slot', ok)); },
-  logLearned(){    fireGet(`/button/log_learned_values/press`, 4000, ok => console.log('log', ok)); },
-
-  // Numbers
-  setNumber(id, v){
-    const try1 = `/number/${encodeURIComponent(id)}/set?value=${encodeURIComponent(v)}`;
-    fireGet(try1, 4000, ok => {
-      if (ok) return;
-      const try2 = `/number/${encodeURIComponent(id)}?value=${encodeURIComponent(v)}`;
-      fireGet(try2, 4000, ok2 => console.log('number', id, ok2));
-    });
-  },
-
-  setRepeat(v){ this.setNumber('rf_repeat', v); },
-  setPulse(v){ this.setNumber('rf_pulse_len', v); },
-  setSlot(v){ this.setNumber('slot_select', v); },
-  setMinBits(v){ this.setNumber('rf_min_bits', v); },
-  setMinRaw(v){ this.setNumber('rf_min_raw_timings', v); },
-  setQuietMs(v){ this.setNumber('rf_quiet_ms', v); },
-
-  // Select (try /set then /select)
-  setProtocol(label){
-    const try1 = `/select/rf_protocol_select/set?option=${encodeURIComponent(label)}`;
-    fireGet(try1, 4000, ok => {
-      if (ok) return;
-      const try2 = `/select/rf_protocol_select/select?option=${encodeURIComponent(label)}`;
-      fireGet(try2, 4000, ok2 => console.log('proto', ok2));
-    });
-  }
-};
-          )JS";
-          request->send(200, "application/javascript; charset=utf-8", kJs);
-          return;
-        }
-        // Otherwise let ESPHome handle (404 etc.)
+        // Let other paths fall through to default handling.
 
 dashboard_import:
   package_import_url: github://hzkincony/kc868-a8/kc868-a8.yaml@main
@@ -239,9 +91,7 @@ ota:
   - platform: esphome
     password: "bobthebuilder"
 
-# -------------------------------------------------------------------
-# I2C / Ethernet
-# -------------------------------------------------------------------
+# ---------------- I2C / Ethernet ----------------
 i2c:
   sda: 4
   scl: 5
@@ -257,9 +107,7 @@ ethernet:
     mode: CLK_OUT
   phy_addr: 0
 
-# -------------------------------------------------------------------
-# 433 MHz RF (RX=GPIO15, TX=GPIO2)
-# -------------------------------------------------------------------
+# ---------------- 433 MHz RF (RX=GPIO15, TX=GPIO2) ----------------
 remote_receiver:
   pin:
     number: GPIO15
@@ -273,6 +121,7 @@ remote_receiver:
 
   on_rc_switch:
     then:
+      # Learn rc_switch (with squelch)
       - if:
           condition:
             lambda: |-
@@ -298,6 +147,7 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
+      # Runtime match (not learning) → pulse Relay2 for 10s (with squelch)
       - if:
           condition:
             lambda: |-
@@ -307,7 +157,6 @@ remote_receiver:
               uint32_t now = millis();
               if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
               id(last_rx_ms) = now;
-
               auto match = [&](uint64_t c, uint8_t b){ return (c!=0 && b==bits && c==x.code); };
               if (match(id(slot1_code), id(slot1_bits))) return true;
               if (match(id(slot2_code), id(slot2_bits))) return true;
@@ -358,21 +207,18 @@ remote_transmitter:
   pin: GPIO2
   carrier_duty_percent: 100%
 
-# -------------------------------------------------------------------
-# Globals
-# -------------------------------------------------------------------
+# ---------------- Globals (incl. 16 slots) ----------------
 globals:
-  - { id: is_learning,      type: bool,                restore_value: false, initial_value: 'false' }
-  - { id: learned_type,     type: std::string,         restore_value: true,  initial_value: '"none"' }
-  - { id: learned_code,     type: uint64_t,            restore_value: true,  initial_value: '0' }
-  - { id: learned_bits,     type: uint8_t,             restore_value: true,  initial_value: '24' }
-  - { id: learned_bin,      type: std::string,         restore_value: true,  initial_value: '""' }
-  - { id: learned_raw,      type: std::vector<int32_t>,restore_value: false, initial_value: 'std::vector<int32_t>()' }
-  - { id: last_a1_logged,   type: float,               restore_value: false, initial_value: 'NAN' }
-  - { id: last_a2_logged,   type: float,               restore_value: false, initial_value: 'NAN' }
-  - { id: last_rx_ms,       type: uint32_t,            restore_value: false, initial_value: '0' }
+  - { id: is_learning,      type: bool,                 restore_value: false, initial_value: 'false' }
+  - { id: learned_type,     type: std::string,          restore_value: true,  initial_value: '"none"' }
+  - { id: learned_code,     type: uint64_t,             restore_value: true,  initial_value: '0' }
+  - { id: learned_bits,     type: uint8_t,              restore_value: true,  initial_value: '24' }
+  - { id: learned_bin,      type: std::string,          restore_value: true,  initial_value: '""' }
+  - { id: learned_raw,      type: std::vector<int32_t>, restore_value: false, initial_value: 'std::vector<int32_t>()' }
+  - { id: last_a1_logged,   type: float,                restore_value: false, initial_value: 'NAN' }
+  - { id: last_a2_logged,   type: float,                restore_value: false, initial_value: 'NAN' }
+  - { id: last_rx_ms,       type: uint32_t,             restore_value: false, initial_value: '0' }
 
-  # 16 RF storage slots (code + bits)
   - { id: slot1_code,  type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot2_code,  type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot3_code,  type: uint64_t, restore_value: true, initial_value: '0' }
@@ -407,9 +253,7 @@ globals:
   - { id: slot15_bits, type: uint8_t, restore_value: true, initial_value: '0' }
   - { id: slot16_bits, type: uint8_t, restore_value: true, initial_value: '0' }
 
-# -------------------------------------------------------------------
-# UI controls (selects & numbers & status text)
-# -------------------------------------------------------------------
+# ---------------- UI controls (selects & numbers & status text) ----------------
 select:
   - platform: template
     id: rf_protocol_select
@@ -499,18 +343,14 @@ text_sensor:
       }
       return std::string("none");
 
-# -------------------------------------------------------------------
-# PCF8574 expanders
-# -------------------------------------------------------------------
+# ---------------- PCF8574 expanders ----------------
 pcf8574:
   - id: pcf8574_hub_out_1
     address: 0x24
   - id: pcf8574_hub_in_1
     address: 0x22
 
-# -------------------------------------------------------------------
-# Relays
-# -------------------------------------------------------------------
+# ---------------- Relays ----------------
 switch:
   - platform: gpio
     id: relay1
@@ -576,9 +416,7 @@ switch:
       number: 7
       inverted: true
 
-# -------------------------------------------------------------------
-# Analog inputs with thresholds + change-only logging
-# -------------------------------------------------------------------
+# ---------------- ADC with threshold + change-only logging ----------------
 sensor:
   - platform: adc
     id: a1_volts
@@ -647,9 +485,7 @@ sensor:
         then:
           - script.execute: send_learned_rf
 
-# -------------------------------------------------------------------
-# Digital inputs
-# -------------------------------------------------------------------
+# ---------------- Digital inputs ----------------
 binary_sensor:
   - platform: gpio
     id: input1
@@ -733,9 +569,7 @@ binary_sensor:
     filters:
       - delayed_on_off: 20ms
 
-# -------------------------------------------------------------------
-# Web UI buttons (trigger scripts/actions)
-# -------------------------------------------------------------------
+# ---------------- Buttons -> scripts ----------------
 button:
   - platform: template
     id: start_rf_learning_ui
@@ -784,9 +618,7 @@ button:
             id(learned_type).c_str(), (unsigned long long) id(learned_code),
             id(learned_bits), (unsigned) id(learned_raw).size());
 
-# -------------------------------------------------------------------
-# Scripts
-# -------------------------------------------------------------------
+# ---------------- Scripts ----------------
 script:
   - id: start_learning
     mode: restart
@@ -871,7 +703,11 @@ script:
             case 16: id(slot16_code)=code; id(slot16_bits)=bits; break;
             default: ESP_LOGW("rf", "Slot out of range"); return;
           }
-          ESP_LOGI("rf", "Saved rc_switch to slot %d: bits=%u code=%llu", s, bits, (unsigned long long) code);
+          ESP_LOGI("rf", "Saved rc_switch to slot %d: bits=%u code=%llu",
+                   s, bits, (unsigned long long) code);
+      # give Preferences time to flush (paired with flash_write_interval)
+      - delay: 6s
+      - logger.log: "Saved to flash."
 
   - id: clear_slot_script
     mode: queued
@@ -897,7 +733,9 @@ script:
             case 16: id(slot16_code)=0; id(slot16_bits)=0; break;
             default: ESP_LOGW("rf", "Slot out of range"); return;
           }
-          ESP_LOGI("rf", "Cleared slot %d", s);
+          ESP_LOGI("rf", "Cleared slot %d", s)
+      - delay: 6s
+      - logger.log: "Cleared from flash."
 
   - id: tx_slot_script
     mode: queued
@@ -932,7 +770,6 @@ script:
           for (int i = bits - 1; i >= 0; --i)
             bin.push_back((code & (1ULL << i)) ? '1' : '0');
           id(learned_bin) = bin;
-
       - if:
           condition:
             lambda: 'return (uint32_t) id(rf_pulse_len).state < 325;'
@@ -947,7 +784,7 @@ script:
                 else:
                   - script.execute: send_rc_switch_433
 
-  # helper scripts for rc_switch protocols
+  # protocol helpers
   - id: send_rc_switch_300
     mode: parallel
     then:
@@ -959,41 +796,11 @@ script:
                 code: !lambda 'return id(learned_bin);'
                 protocol: { pulse_length: 300, sync: [1,31], zero: [1,3], one: [3,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 300, sync: [1,10], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 300, sync: [30,71], zero: [4,11], one: [9,6] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 300, sync: [1,6], zero: [1,3], one: [3,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 300, sync: [6,14], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 300, sync: [1,23], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [1,10], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [30,71], zero: [4,11], one: [9,6] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [1,6], zero: [1,3], one: [3,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [6,14], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [1,23], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
 
   - id: send_rc_switch_350
     mode: parallel
@@ -1006,41 +813,11 @@ script:
                 code: !lambda 'return id(learned_bin);'
                 protocol: { pulse_length: 350, sync: [1,31], zero: [1,3], one: [3,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 350, sync: [1,10], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 350, sync: [30,71], zero: [4,11], one: [9,6] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 350, sync: [1,6], zero: [1,3], one: [3,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 350, sync: [6,14], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 350, sync: [1,23], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [1,10], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [30,71], zero: [4,11], one: [9,6] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [1,6], zero: [1,3], one: [3,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [6,14], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [1,23], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
 
   - id: send_rc_switch_433
     mode: parallel
@@ -1053,45 +830,13 @@ script:
                 code: !lambda 'return id(learned_bin);'
                 protocol: { pulse_length: 433, sync: [1,31], zero: [1,3], one: [3,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 433, sync: [1,10], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 433, sync: [30,71], zero: [4,11], one: [9,6] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 433, sync: [1,6], zero: [1,3], one: [3,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 433, sync: [6,14], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if:
-          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
-          then:
-            - remote_transmitter.transmit_rc_switch_raw:
-                code: !lambda 'return id(learned_bin);'
-                protocol: { pulse_length: 433, sync: [1,23], zero: [1,2], one: [2,1] }
-                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [1,10], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [30,71], zero: [4,11], one: [9,6] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [1,6], zero: [1,3], one: [3,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [6,14], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [1,23], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
 
-# -------------------------------------------------------------------
-# Logging / API
-# -------------------------------------------------------------------
+# ---------------- Logging / API ----------------
 logger:
   level: DEBUG
 
