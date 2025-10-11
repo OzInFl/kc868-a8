@@ -49,8 +49,11 @@ remote_receiver:
   tolerance: 50%
   filter: 250us
   idle: 4ms
+
+  # Handle rc_switch frames
   on_rc_switch:
     then:
+      # 1) Learning (only when protocol select is Auto)
       - if:
           condition:
             lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";'
@@ -70,6 +73,21 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
+      # 2) Runtime match: if not learning and we have a learned rc_switch code, pulse Relay2
+      - if:
+          condition:
+            lambda: |-
+              if (id(is_learning)) return false;
+              if (id(learned_type) != "rc_switch") return false;
+              uint8_t bits = 64 - __builtin_clzll(x.code);
+              return (bits == id(learned_bits)) && (x.code == id(learned_code));
+          then:
+            - logger.log: "Matched learned keyfob → Relay2 pulse"
+            - switch.turn_on: relay2
+            - delay: 10s
+            - switch.turn_off: relay2
+
+  # Handle raw frames (learning only when protocol select is Raw)
   on_raw:
     then:
       - if:
@@ -120,6 +138,16 @@ globals:
     type: std::vector<int32_t>
     restore_value: no
     initial_value: 'std::vector<int32_t>()'
+
+  # Last-logged values for A1/A2 (to reduce log spam)
+  - id: last_a1_logged
+    type: float
+    restore_value: no
+    initial_value: 'nan'
+  - id: last_a2_logged
+    type: float
+    restore_value: no
+    initial_value: 'nan'
 
 # ---------- UI controls ----------
 select:
@@ -215,7 +243,7 @@ switch:
     name: "relay8 (learning indicator)"
     pin: { pcf8574: pcf8574_hub_out_1, number: 7, inverted: true }
 
-# ---------- Analog thresholds ----------
+# ---------- Analog thresholds with "log only on change" ----------
 sensor:
   - platform: adc
     id: a1_volts
@@ -225,9 +253,21 @@ sensor:
     update_interval: 300ms
     filters:
       - median: { window_size: 5, send_every: 2, send_first_at: 1 }
+      # Map ADC (~0–3.3 V) back to terminal 0–5 V
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
+
+    # Log only when value changes by >= 0.02 V
+    on_value:
+      then:
+        - lambda: |-
+            const float eps = 0.02f;  // 20 mV
+            if (isnan(id(last_a1_logged)) || fabsf(x - id(last_a1_logged)) >= eps) {
+              id(last_a1_logged) = x;
+              ESP_LOGI("a1", "A1 = %.3f V", x);
+            }
+
     on_value_range:
       - above: 2.05
         then:
@@ -254,6 +294,17 @@ sensor:
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
+
+    # Log only when value changes by >= 0.02 V
+    on_value:
+      then:
+        - lambda: |-
+            const float eps = 0.02f;  // 20 mV
+            if (isnan(id(last_a2_logged)) || fabsf(x - id(last_a2_logged)) >= eps) {
+              id(last_a2_logged) = x;
+              ESP_LOGI("a2", "A2 = %.3f V", x);
+            }
+
     on_value_range:
       - above: 2.05
         then:
