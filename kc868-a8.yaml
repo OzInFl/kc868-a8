@@ -1,5 +1,5 @@
 substitutions:
-  name: HIDEAWAYS
+  name: hideaways
 esphome:
   name: ${name}
   name_add_mac_suffix: true
