@@ -44,7 +44,7 @@ ethernet:
     mode: CLK_OUT
   phy_addr: 0
 
-# ---------- 433 MHz RF (per your wiring: RX=GPIO15, TX=GPIO2) ----------
+# ========== 433 MHz RF (RX=GPIO15, TX=GPIO2) ==========
 remote_receiver:
   pin:
     number: GPIO15
@@ -58,10 +58,19 @@ remote_receiver:
 
   on_rc_switch:
     then:
-      # Learn when in Auto(rc_switch)
+      # ---- Learning (Auto rc_switch) with runtime squelch ----
       - if:
           condition:
-            lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";'
+            lambda: |-
+              // bits threshold
+              uint8_t bits = 64 - __builtin_clzll(x.code);
+              if (bits < (uint8_t) id(rf_min_bits).state) return false;
+              // debounce
+              uint32_t now = millis();
+              if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
+              id(last_rx_ms) = now;
+              // only when learning + protocol = Auto(rc_switch)
+              return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";
           then:
             - lambda: |-
                 id(learned_code) = x.code;
@@ -79,13 +88,18 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # Runtime match → pulse Relay2 for 10s if any stored code matches
+      # ---- Runtime match with same squelch ----
       - if:
           condition:
             lambda: |-
               if (id(is_learning)) return false;
               uint8_t bits = 64 - __builtin_clzll(x.code);
-              auto match = [&](uint64_t c, uint8_t b){ return (c != 0 && b == bits && c == x.code); };
+              if (bits < (uint8_t) id(rf_min_bits).state) return false;
+              uint32_t now = millis();
+              if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
+              id(last_rx_ms) = now;
+
+              auto match = [&](uint64_t c, uint8_t b){ return (c!=0 && b==bits && c==x.code); };
               if (match(id(slot1_code), id(slot1_bits))) return true;
               if (match(id(slot2_code), id(slot2_bits))) return true;
               if (match(id(slot3_code), id(slot3_bits))) return true;
@@ -109,12 +123,19 @@ remote_receiver:
             - delay: 10s
             - switch.turn_off: relay2
 
-  # RAW learning (only when protocol select = Raw)
+  # RAW learning (only when protocol select = Raw) with squelch
   on_raw:
     then:
       - if:
           condition:
-            lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Raw";'
+            lambda: |-
+              if (!id(is_learning)) return false;
+              if (id(rf_protocol_select).state != "Raw") return false;
+              if ((int)x.size() < (int) id(rf_min_raw_timings).state) return false;
+              uint32_t now = millis();
+              if (now - id(last_rx_ms) < (uint32_t) id(rf_quiet_ms).state) return false;
+              id(last_rx_ms) = now;
+              return true;
           then:
             - lambda: |-
                 id(learned_raw).clear();
@@ -129,7 +150,7 @@ remote_transmitter:
   pin: GPIO2
   carrier_duty_percent: 100%
 
-# ---------- Globals (fixed to multi-line YAML) ----------
+# ========== Globals ==========
 globals:
   - id: is_learning
     type: bool
@@ -175,6 +196,12 @@ globals:
     type: float
     restore_value: false
     initial_value: 'NAN'
+
+  # Squelch debounce timestamp (ms)
+  - id: last_rx_ms
+    type: uint32_t
+    restore_value: false
+    initial_value: '0'
 
   # ----- RF code book: 16 slots (code + bits) -----
   - id: slot1_code
@@ -307,7 +334,7 @@ globals:
     restore_value: true
     initial_value: '0'
 
-# ---------- UI controls ----------
+# ========== UI controls ==========
 select:
   - platform: template
     id: rf_protocol_select
@@ -352,6 +379,34 @@ number:
     optimistic: true
     initial_value: 1
 
+  # --- Squelch sliders ---
+  - platform: template
+    id: rf_min_bits
+    name: "RF Min Bits"
+    min_value: 1
+    max_value: 64
+    step: 1
+    optimistic: true
+    initial_value: 20
+
+  - platform: template
+    id: rf_min_raw_timings
+    name: "RF Min RAW Timings"
+    min_value: 0
+    max_value: 200
+    step: 5
+    optimistic: true
+    initial_value: 40
+
+  - platform: template
+    id: rf_quiet_ms
+    name: "RF Quiet (ms)"
+    min_value: 0
+    max_value: 2000
+    step: 50
+    optimistic: true
+    initial_value: 200
+
 text_sensor:
   - platform: template
     id: learned_status
@@ -370,128 +425,144 @@ text_sensor:
       }
       return std::string("none");
 
-  # Slot status lines
+  # Slot status lines with IDs (slot_01..slot_16)
   - platform: template
+    id: slot_01
     name: "Slot 01"
     update_interval: 3s
     lambda: |-
       if (id(slot1_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot1_bits), (unsigned long long) id(slot1_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_02
     name: "Slot 02"
     update_interval: 3s
     lambda: |-
       if (id(slot2_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot2_bits), (unsigned long long) id(slot2_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_03
     name: "Slot 03"
     update_interval: 3s
     lambda: |-
       if (id(slot3_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot3_bits), (unsigned long long) id(slot3_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_04
     name: "Slot 04"
     update_interval: 3s
     lambda: |-
       if (id(slot4_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot4_bits), (unsigned long long) id(slot4_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_05
     name: "Slot 05"
     update_interval: 3s
     lambda: |-
       if (id(slot5_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot5_bits), (unsigned long long) id(slot5_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_06
     name: "Slot 06"
     update_interval: 3s
     lambda: |-
       if (id(slot6_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot6_bits), (unsigned long long) id(slot6_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_07
     name: "Slot 07"
     update_interval: 3s
     lambda: |-
       if (id(slot7_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot7_bits), (unsigned long long) id(slot7_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_08
     name: "Slot 08"
     update_interval: 3s
     lambda: |-
       if (id(slot8_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot8_bits), (unsigned long long) id(slot8_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_09
     name: "Slot 09"
     update_interval: 3s
     lambda: |-
       if (id(slot9_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot9_bits), (unsigned long long) id(slot9_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_10
     name: "Slot 10"
     update_interval: 3s
     lambda: |-
       if (id(slot10_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot10_bits), (unsigned long long) id(slot10_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_11
     name: "Slot 11"
     update_interval: 3s
     lambda: |-
       if (id(slot11_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot11_bits), (unsigned long long) id(slot11_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_12
     name: "Slot 12"
     update_interval: 3s
     lambda: |-
       if (id(slot12_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot12_bits), (unsigned long long) id(slot12_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_13
     name: "Slot 13"
     update_interval: 3s
     lambda: |-
       if (id(slot13_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot13_bits), (unsigned long long) id(slot13_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_14
     name: "Slot 14"
     update_interval: 3s
     lambda: |-
       if (id(slot14_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot14_bits), (unsigned long long) id(slot14_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_15
     name: "Slot 15"
     update_interval: 3s
     lambda: |-
       if (id(slot15_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot15_bits), (unsigned long long) id(slot15_code));
-      return std::string(b);
+      return std::string(b)
   - platform: template
+    id: slot_16
     name: "Slot 16"
     update_interval: 3s
     lambda: |-
       if (id(slot16_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot16_bits), (unsigned long long) id(slot16_code));
-      return std::string(b);
+      return std::string(b)
 
-# ---------- PCF8574 expanders ----------
+# ========== PCF8574 expanders ==========
 pcf8574:
   - id: pcf8574_hub_out_1
     address: 0x24
   - id: pcf8574_hub_in_1
     address: 0x22
 
-# ---------- Relays ----------
+# ========== Relays ==========
 switch:
   - platform: gpio
     id: relay1
@@ -557,7 +628,7 @@ switch:
       number: 7
       inverted: true
 
-# ---------- Analog inputs with thresholds + change-only logging ----------
+# ========== Analog inputs with thresholds + change-only logging ==========
 sensor:
   - platform: adc
     id: a1_volts
@@ -626,7 +697,7 @@ sensor:
         then:
           - script.execute: send_learned_rf
 
-# ---------- Digital inputs ----------
+# ========== Digital inputs ==========
 binary_sensor:
   - platform: gpio
     id: input1
@@ -634,7 +705,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 0
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -647,7 +717,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 1
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -658,7 +727,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 2
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -669,7 +737,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 3
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -680,7 +747,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 4
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -691,7 +757,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 5
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -702,7 +767,6 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 6
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
@@ -713,39 +777,44 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 7
-      mode: INPUT
       inverted: true
     filters:
       - delayed_on_off: 20ms
 
-# ---------- Web UI buttons ----------
+# ========== Web UI buttons ==========
 button:
   - platform: template
+    id: start_rf_learning_ui
     name: "Start RF learning (UI)"
     on_press:
       - script.execute: start_learning
 
   - platform: template
+    id: transmit_learned_433
     name: "Transmit learned 433"
     on_press:
       - script.execute: send_learned_rf
 
   - platform: template
-    name: "Save learned → slot"
+    id: save_learned_slot
+    name: "Save learned slot"
     on_press:
       - script.execute: save_learned_to_slot
 
   - platform: template
+    id: transmit_slot
     name: "Transmit slot"
     on_press:
       - script.execute: transmit_slot
 
   - platform: template
+    id: clear_slot_btn
     name: "Clear slot"
     on_press:
       - script.execute: clear_slot
 
   - platform: template
+    id: learn_to_selected_slot
     name: "Learn to selected slot"
     on_press:
       - script.execute: start_learning
@@ -753,6 +822,7 @@ button:
       - script.execute: save_learned_to_slot
 
   - platform: template
+    id: log_learned_values
     name: "Log learned values"
     on_press:
       - lambda: |-
@@ -760,7 +830,7 @@ button:
             id(learned_type).c_str(), (unsigned long long) id(learned_code),
             id(learned_bits), (unsigned) id(learned_raw).size());
 
-# ---------- Scripts ----------
+# ========== Scripts ==========
 script:
   - id: start_learning
     mode: restart
