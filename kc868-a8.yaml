@@ -349,15 +349,16 @@ script:
     then:
       - lambda: 'id(is_learning) = true;'
       - switch.turn_on: relay8
-      - logger.log: !lambda |-
-          return ("Learning mode: " + id(rf_protocol_select).state + " (15s)").c_str();
+      - lambda: |-
+          ESP_LOGI("rf", "Learning mode: %s (15s)", id(rf_protocol_select).state.c_str());
       - delay: 15s
       - if:
-          condition: 'return id(is_learning);'
+          condition:
+            lambda: 'return id(is_learning);'
           then:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
-            - logger.log: "Learning timed out."
+            - lambda: 'ESP_LOGW("rf", "Learning timed out.");'
 
   # Transmit learned RF according to protocol select
   - id: send_learned_rf
@@ -367,21 +368,20 @@ script:
           auto opt = id(rf_protocol_select).state;
           if (opt == "Raw") {
             if (!id(learned_raw).empty()) {
-              id(logger).log(esphome::LOG_LEVEL_INFO, "TX: RAW timings");
+              ESP_LOGI("rf", "TX: RAW timings (%u pulses)", (unsigned) id(learned_raw).size());
               id(remote_transmitter).transmit_raw(id(learned_raw));
             } else {
-              id(logger).log(esphome::LOG_LEVEL_WARN, "No RAW timing learned.");
+              ESP_LOGW("rf", "No RAW timing learned.");
             }
             return;
           }
-          // For rc_switch-style protocols, need a bitstring
           if (id(learned_bin).empty()) {
-            id(logger).log(esphome::LOG_LEVEL_WARN, "No rc_switch code learned.");
+            ESP_LOGW("rf", "No rc_switch code learned.");
             return;
           }
-          const int pl = (int) id(rf_pulse_length).state;
+          const int pl  = (int) id(rf_pulse_length).state;
           const int rep = (int) id(rf_repeat).state;
-          // Build protocol timings by option (defaults to Protocol 1 style)
+
           esphome::remote_base::RCSwitchBase proto;
           if (opt == "Protocol 1" || opt == "Auto (rc_switch)") {
             proto = esphome::remote_base::RCSwitchBase(pl, {1,31}, {1,3}, {3,1});
@@ -395,9 +395,13 @@ script:
             proto = esphome::remote_base::RCSwitchBase(pl, {6,14}, {1,2}, {2,1});
           } else if (opt == "Protocol 6") {
             proto = esphome::remote_base::RCSwitchBase(pl, {1,23}, {1,2}, {2,1});
-          } else { // fallback
+          } else {
             proto = esphome::remote_base::RCSwitchBase(pl, {1,31}, {1,3}, {3,1});
           }
+
+          ESP_LOGI("rf", "TX rc_switch: bits=%u pulse=%dus repeat=%d proto=%s",
+                   (unsigned) id(learned_bits), pl, rep, opt.c_str());
+
           for (int i = 0; i < rep; i++) {
             id(remote_transmitter).transmit_rc_switch_raw(id(learned_bin), proto);
           }
