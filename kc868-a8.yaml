@@ -18,7 +18,7 @@ esp32:
     type: arduino
 
 # -------------------------------------------------------------------
-# Web server + same-origin UI served at /ui and /ui.js
+# Web server + same-origin UI served at / and /ui and /ui.js
 # -------------------------------------------------------------------
 web_server:
   port: 80
@@ -27,7 +27,8 @@ web_server:
     - lambda: |-
         std::string path = request->url()->path();
 
-        if (path == "/ui") {
+        // Serve UI HTML on / and /ui
+        if (path == "/" || path == "/ui") {
           static const char kHtml[] PROGMEM = R"HTML(
 <!doctype html>
 <html lang="en">
@@ -158,6 +159,7 @@ web_server:
           return;
         }
 
+        // Serve JS
         if (path == "/ui.js") {
           static const char kJs[] PROGMEM = R"JS(
 // === no-CORS same-origin helpers (Image beacon) =========================
@@ -228,14 +230,7 @@ window.ESPUI = {
           request->send(200, "application/javascript; charset=utf-8", kJs);
           return;
         }
-
-        // Optional convenience: redirect / -> /ui
-        if (path == "/") {
-          request->send(302, "text/plain", "");
-          request->add_header("Location", "/ui");
-          return;
-        }
-        // Fall-through: not handled; let ESPHome default 404 kick in.
+        // Otherwise let ESPHome handle (404 etc.)
 
 dashboard_import:
   package_import_url: github://hzkincony/kc868-a8/kc868-a8.yaml@main
@@ -278,7 +273,6 @@ remote_receiver:
 
   on_rc_switch:
     then:
-      # Learning (Auto rc_switch) with squelch
       - if:
           condition:
             lambda: |-
@@ -304,7 +298,6 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # Runtime match with squelch → pulse Relay2 for 10s
       - if:
           condition:
             lambda: |-
@@ -339,7 +332,6 @@ remote_receiver:
             - delay: 10s
             - switch.turn_off: relay2
 
-  # RAW learning (only when protocol select = Raw) with squelch
   on_raw:
     then:
       - if:
@@ -370,61 +362,26 @@ remote_transmitter:
 # Globals
 # -------------------------------------------------------------------
 globals:
-  - id: is_learning
-    type: bool
-    restore_value: false
-    initial_value: 'false'
+  - { id: is_learning,      type: bool,                restore_value: false, initial_value: 'false' }
+  - { id: learned_type,     type: std::string,         restore_value: true,  initial_value: '"none"' }
+  - { id: learned_code,     type: uint64_t,            restore_value: true,  initial_value: '0' }
+  - { id: learned_bits,     type: uint8_t,             restore_value: true,  initial_value: '24' }
+  - { id: learned_bin,      type: std::string,         restore_value: true,  initial_value: '""' }
+  - { id: learned_raw,      type: std::vector<int32_t>,restore_value: false, initial_value: 'std::vector<int32_t>()' }
+  - { id: last_a1_logged,   type: float,               restore_value: false, initial_value: 'NAN' }
+  - { id: last_a2_logged,   type: float,               restore_value: false, initial_value: 'NAN' }
+  - { id: last_rx_ms,       type: uint32_t,            restore_value: false, initial_value: '0' }
 
-  - id: learned_type
-    type: std::string
-    restore_value: true
-    initial_value: '"none"'
-
-  - id: learned_code
-    type: uint64_t
-    restore_value: true
-    initial_value: '0'
-
-  - id: learned_bits
-    type: uint8_t
-    restore_value: true
-    initial_value: '24'
-
-  - id: learned_bin
-    type: std::string
-    restore_value: true
-    initial_value: '""'
-
-  - id: learned_raw
-    type: std::vector<int32_t>
-    restore_value: false
-    initial_value: 'std::vector<int32_t>()'
-
-  - id: last_a1_logged
-    type: float
-    restore_value: false
-    initial_value: 'NAN'
-
-  - id: last_a2_logged
-    type: float
-    restore_value: false
-    initial_value: 'NAN'
-
-  - id: last_rx_ms
-    type: uint32_t
-    restore_value: false
-    initial_value: '0'
-
-  # RF code book: 16 slots (code + bits)
-  - { id: slot1_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot2_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot3_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot4_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot5_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot6_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot7_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot8_code, type: uint64_t, restore_value: true, initial_value: '0' }
-  - { id: slot9_code, type: uint64_t, restore_value: true, initial_value: '0' }
+  # 16 RF storage slots (code + bits)
+  - { id: slot1_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot2_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot3_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot4_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot5_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot6_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot7_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot8_code,  type: uint64_t, restore_value: true, initial_value: '0' }
+  - { id: slot9_code,  type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot10_code, type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot11_code, type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot12_code, type: uint64_t, restore_value: true, initial_value: '0' }
@@ -433,15 +390,15 @@ globals:
   - { id: slot15_code, type: uint64_t, restore_value: true, initial_value: '0' }
   - { id: slot16_code, type: uint64_t, restore_value: true, initial_value: '0' }
 
-  - { id: slot1_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot2_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot3_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot4_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot5_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot6_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot7_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot8_bits, type: uint8_t, restore_value: true, initial_value: '0' }
-  - { id: slot9_bits, type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot1_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot2_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot3_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot4_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot5_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot6_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot7_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot8_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
+  - { id: slot9_bits,  type: uint8_t, restore_value: true, initial_value: '0' }
   - { id: slot10_bits, type: uint8_t, restore_value: true, initial_value: '0' }
   - { id: slot11_bits, type: uint8_t, restore_value: true, initial_value: '0' }
   - { id: slot12_bits, type: uint8_t, restore_value: true, initial_value: '0' }
@@ -497,7 +454,6 @@ number:
     optimistic: true
     initial_value: 1
 
-  # Squelch sliders
   - platform: template
     id: rf_min_bits
     name: "RF Min Bits"
@@ -713,7 +669,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 1
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -723,7 +679,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 2
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -733,7 +689,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 3
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -743,7 +699,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 4
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -753,7 +709,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 5
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -763,7 +719,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 6
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -773,7 +729,7 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 7
-    inverted: true
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
