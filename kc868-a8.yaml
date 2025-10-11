@@ -42,28 +42,24 @@ ethernet:
 
 # ---------- 433 MHz RF ----------
 remote_receiver:
-  pin: GPIO2         # KC868-A8 RX (strap pin warning is expected)
+  pin: GPIO2
   dump:
     - rc_switch
     - raw
   tolerance: 50%
   filter: 250us
   idle: 4ms
-  # 1) Normal RC-Switch learn (when protocol select = Auto)
   on_rc_switch:
     then:
       - if:
           condition:
-            lambda: |-
-              return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";
+            lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";'
           then:
             - lambda: |-
-                // Save numeric code & infer bits
                 id(learned_code) = x.code;
                 uint8_t bits = 64 - __builtin_clzll(x.code);
                 if (bits == 0) bits = id(learned_bits);
                 id(learned_bits) = bits;
-                // Build bitstring (preserve leading zeros)
                 std::string s; s.reserve(bits);
                 for (int i = bits - 1; i >= 0; --i) s.push_back((x.code & (1ULL << i)) ? '1' : '0');
                 id(learned_bin) = s;
@@ -73,31 +69,26 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-  # 2) Raw learn (when protocol select = Raw)
   on_raw:
     then:
       - if:
           condition:
-            lambda: |-
-              return id(is_learning) && id(rf_protocol_select).state == "Raw";
+            lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Raw";'
           then:
             - lambda: |-
-                // Save raw timings
                 id(learned_raw).clear();
                 id(learned_raw).reserve(x.size());
                 for (auto v : x) id(learned_raw).push_back(v);
                 id(learned_type) = std::string("raw");
-                ESP_LOGI("rf", "Learned RAW timings: count=%u",
-                         (unsigned) id(learned_raw).size());
+                ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
 remote_transmitter:
-  id: rf_tx          # <— give it an id so we can call it from lambdas
-  pin: GPIO15        # KC868-A8 TX (strap pin warning is expected)
+  pin: GPIO15
   carrier_duty_percent: 100%
 
-# Persist / runtime storage for learning
+# Persist / runtime storage
 globals:
   - id: is_learning
     type: bool
@@ -127,9 +118,9 @@ globals:
   - id: learned_raw
     type: std::vector<int32_t>
     restore_value: no
-    initial_value: '{}'
+    initial_value: 'std::vector<int32_t>()'
 
-# ---------- UI controls for protocol / pulse / actions ----------
+# ---------- UI controls ----------
 select:
   - platform: template
     id: rf_protocol_select
@@ -167,7 +158,6 @@ number:
     restore_value: true
     initial_value: 10
 
-# Human-readable status of what we learned
 text_sensor:
   - platform: template
     id: learned_status
@@ -188,9 +178,9 @@ text_sensor:
 
 # ---------- PCF8574 expanders ----------
 pcf8574:
-  - id: pcf8574_hub_out_1   # outputs 1–8
+  - id: pcf8574_hub_out_1
     address: 0x24
-  - id: pcf8574_hub_in_1    # inputs 1–8
+  - id: pcf8574_hub_in_1
     address: 0x22
 
 # ---------- Relays (active-low) ----------
@@ -281,7 +271,6 @@ sensor:
 
 # ---------- Digital inputs ----------
 binary_sensor:
-  # DI1: enter learning mode (Relay8 = indicator, 15 s window)
   - platform: gpio
     id: input1
     name: "input1 (learn RF)"
@@ -346,7 +335,6 @@ button:
 
 # ---------- Scripts ----------
 script:
-  # Enter learning window (15 s)
   - id: start_learning
     mode: restart
     then:
@@ -363,53 +351,118 @@ script:
             - switch.turn_off: relay8
             - lambda: 'ESP_LOGW("rf", "Learning timed out.");'
 
-  # Transmit learned RF according to protocol select
+  # Send learned RF using ACTIONS (no C++ calls)
   - id: send_learned_rf
     mode: queued
     then:
-      - lambda: |-
-          auto opt = id(rf_protocol_select).state;
-          if (opt == "Raw") {
-            if (!id(learned_raw).empty()) {
-              ESP_LOGI("rf", "TX: RAW timings (%u pulses)", (unsigned) id(learned_raw).size());
-              id(rf_tx).transmit_raw(id(learned_raw));            // <— use rf_tx id
-            } else {
-              ESP_LOGW("rf", "No RAW timing learned.");
-            }
-            return;
-          }
-          if (id(learned_bin).empty()) {
-            ESP_LOGW("rf", "No rc_switch code learned.");
-            return;
-          }
-          const int pl  = (int) id(rf_pulse_length).state;
-          const int rep = (int) id(rf_repeat).state;
+      - choose:
 
-          esphome::remote_base::RCSwitchBase proto;
-          if (opt == "Protocol 1" || opt == "Auto (rc_switch)") {
-            proto = esphome::remote_base::RCSwitchBase(pl, {1,31}, {1,3}, {3,1});
-          } else if (opt == "Protocol 2") {
-            proto = esphome::remote_base::RCSwitchBase(pl, {1,10}, {1,2}, {2,1});
-          } else if (opt == "Protocol 3") {
-            proto = esphome::remote_base::RCSwitchBase(pl, {30,71}, {4,11}, {9,6});
-          } else if (opt == "Protocol 4") {
-            proto = esphome::remote_base::RCSwitchBase(pl, {1,6}, {1,3}, {3,1});
-          } else if (opt == "Protocol 5") {
-            proto = esphome::remote_base::RCSwitchBase(pl, {6,14}, {1,2}, {2,1});
-          } else if (opt == "Protocol 6") {
-            proto = esphome::remote_base::RCSwitchBase(pl, {1,23}, {1,2}, {2,1});
-          } else {
-            proto = esphome::remote_base::RCSwitchBase(pl, {1,31}, {1,3}, {3,1});
-          }
+          # RAW branch
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Raw";'
+            sequence:
+              - if:
+                  condition:
+                    lambda: 'return !id(learned_raw).empty();'
+                  then:
+                    - remote_transmitter.transmit_raw:
+                        code: !lambda 'return id(learned_raw);'
+                        repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+                  else:
+                    - logger.log: "No RAW timing learned."
 
-          ESP_LOGI("rf", "TX rc_switch: bits=%u pulse=%dus repeat=%d proto=%s",
-                   (unsigned) id(learned_bits), pl, rep, opt.c_str());
+          # AUTO + Protocol branches (rc_switch raw bitstring + protocol timings)
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Auto (rc_switch)";'
+            sequence:
+              - if:
+                  condition:
+                    lambda: 'return id(learned_bin).size() > 0;'
+                  then:
+                    - remote_transmitter.transmit_rc_switch_raw:
+                        code: !lambda 'return id(learned_bin);'
+                        protocol:
+                          pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                          sync: [1, 31]
+                          zero: [1, 3]
+                          one:  [3, 1]
+                        repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+                  else:
+                    - logger.log: "No rc_switch code learned."
 
-          for (int i = 0; i < rep; i++) {
-            id(rf_tx).transmit_rc_switch_raw(id(learned_bin), proto);  # <— use rf_tx id
-          }
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Protocol 1";'
+            sequence:
+              - remote_transmitter.transmit_rc_switch_raw:
+                  code: !lambda 'return id(learned_bin);'
+                  protocol:
+                    pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                    sync: [1, 31]
+                    zero: [1, 3]
+                    one:  [3, 1]
+                  repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Protocol 2";'
+            sequence:
+              - remote_transmitter.transmit_rc_switch_raw:
+                  code: !lambda 'return id(learned_bin);'
+                  protocol:
+                    pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                    sync: [1, 10]
+                    zero: [1, 2]
+                    one:  [2, 1]
+                  repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Protocol 3";'
+            sequence:
+              - remote_transmitter.transmit_rc_switch_raw:
+                  code: !lambda 'return id(learned_bin);'
+                  protocol:
+                    pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                    sync: [30, 71]
+                    zero: [4, 11]
+                    one:  [9, 6]
+                  repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Protocol 4";'
+            sequence:
+              - remote_transmitter.transmit_rc_switch_raw:
+                  code: !lambda 'return id(learned_bin);'
+                  protocol:
+                    pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                    sync: [1, 6]
+                    zero: [1, 3]
+                    one:  [3, 1]
+                  repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Protocol 5";'
+            sequence:
+              - remote_transmitter.transmit_rc_switch_raw:
+                  code: !lambda 'return id(learned_bin);'
+                  protocol:
+                    pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                    sync: [6, 14]
+                    zero: [1, 2]
+                    one:  [2, 1]
+                  repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+
+          - conditions:
+              - lambda: 'return id(rf_protocol_select).state == "Protocol 6";'
+            sequence:
+              - remote_transmitter.transmit_rc_switch_raw:
+                  code: !lambda 'return id(learned_bin);'
+                  protocol:
+                    pulse_length: !lambda 'return (uint32_t) id(rf_pulse_length).state;'
+                    sync: [1, 23]
+                    zero: [1, 2]
+                    one:  [2, 1]
+                  repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
 
 # Logging / API
 logger:
-  level: DEBUG      # <— no id here anymore
+  level: DEBUG
 api:
