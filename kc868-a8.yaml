@@ -40,20 +40,19 @@ ethernet:
     mode: CLK_OUT
   phy_addr: 0
 
-# ---------- 433 MHz RF ----------
+# ---------- 433 MHz RF (A8 V1.6 friendly pins + permissive decode) ----------
 remote_receiver:
-  pin: GPIO2
+  pin: GPIO27         # <-- receiver DATA here
   dump:
     - rc_switch
     - raw
-  tolerance: 50%
-  filter: 250us
-  idle: 4ms
+  tolerance: 65%      # try 60–70% if needed
+  filter: 100us       # more sensitive to short pulses
+  idle: 8ms
 
-  # Handle rc_switch frames
   on_rc_switch:
     then:
-      # 1) Learning (only when protocol select is Auto)
+      # Learn when in Auto(rc_switch)
       - if:
           condition:
             lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";'
@@ -74,7 +73,7 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # 2) Runtime match: if not learning and we have a learned rc_switch code, pulse Relay2 for 10s
+      # Runtime match → pulse Relay2 for 10s
       - if:
           condition:
             lambda: |-
@@ -88,27 +87,25 @@ remote_receiver:
             - delay: 10s
             - switch.turn_off: relay2
 
-  # Handle raw frames (learning only when protocol select is Raw)
-  on_raw:
-    then:
-      - if:
-          condition:
-            lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Raw";'
-          then:
-            - lambda: |-
-                id(learned_raw).clear();
-                id(learned_raw).reserve(x.size());
-                for (auto v : x) {
-                  id(learned_raw).push_back(v);
-                }
-                id(learned_type) = std::string("raw");
-                ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
-            - lambda: 'id(is_learning) = false;'
-            - switch.turn_off: relay8
+on_raw:
+  then:
+    - if:
+        condition:
+          lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Raw";'
+        then:
+          - lambda: |-
+              id(learned_raw).clear();
+              id(learned_raw).reserve(x.size());
+              for (auto v : x) { id(learned_raw).push_back(v); }
+              id(learned_type) = std::string("raw");
+              ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
+          - lambda: 'id(is_learning) = false;'
+          - switch.turn_off: relay8
 
 remote_transmitter:
-  pin: GPIO15
+  pin: GPIO25         # <-- transmitter DATA here
   carrier_duty_percent: 100%
+
 
 # Persist / runtime storage
 globals:
