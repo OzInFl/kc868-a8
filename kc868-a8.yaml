@@ -43,7 +43,7 @@ ethernet:
 # ---------- 433 MHz RF (fixed to IO2 / IO15) ----------
 remote_receiver:
   pin:
-    number: GPIO2            # fixed by board
+    number: GPIO15            # fixed by board
     mode: INPUT_PULLDOWN     # keep IO2 low at boot; helps avoid bad strap state
   dump:
     - rc_switch
@@ -107,7 +107,7 @@ remote_receiver:
             - switch.turn_off: relay8
 
 remote_transmitter:
-  pin: GPIO15               # fixed by board
+  pin: GPIO2               # fixed by board
   carrier_duty_percent: 100%
 
 
