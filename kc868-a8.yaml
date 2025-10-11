@@ -40,17 +40,19 @@ ethernet:
     mode: CLK_OUT
   phy_addr: 0
 
-# ---------- 433 MHz RF (A8 V1.6 friendly pins + permissive decode) ----------
+# ---------- 433 MHz RF (fixed to IO2 / IO15) ----------
 remote_receiver:
-  pin: GPIO27
+  pin:
+    number: GPIO2            # fixed by board
+    mode: INPUT_PULLDOWN     # keep IO2 low at boot; helps avoid bad strap state
   dump:
     - rc_switch
     - raw
-  tolerance: 65%
-  filter: 100us
+  tolerance: 65%             # more forgiving
+  filter: 100us              # more sensitive
   idle: 8ms
 
-  # Handle rc_switch frames
+  # rc_switch learning + runtime match (unchanged logic)
   on_rc_switch:
     then:
       # Learn when in Auto(rc_switch)
@@ -74,7 +76,7 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # Runtime match → pulse Relay2 for 10s
+      # If we hear the learned keyfob outside learning, pulse Relay2 for 10s
       - if:
           condition:
             lambda: |-
@@ -88,7 +90,7 @@ remote_receiver:
             - delay: 10s
             - switch.turn_off: relay2
 
-  # Handle RAW frames (learning only)
+  # RAW learning when protocol select is Raw
   on_raw:
     then:
       - if:
@@ -105,7 +107,7 @@ remote_receiver:
             - switch.turn_off: relay8
 
 remote_transmitter:
-  pin: GPIO25
+  pin: GPIO15               # fixed by board
   carrier_duty_percent: 100%
 
 
