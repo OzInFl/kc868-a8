@@ -433,7 +433,7 @@ text_sensor:
     lambda: |-
       if (id(slot1_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot1_bits), (unsigned long long) id(slot1_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_02
     name: "Slot 02"
@@ -441,7 +441,7 @@ text_sensor:
     lambda: |-
       if (id(slot2_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot2_bits), (unsigned long long) id(slot2_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_03
     name: "Slot 03"
@@ -449,7 +449,7 @@ text_sensor:
     lambda: |-
       if (id(slot3_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot3_bits), (unsigned long long) id(slot3_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_04
     name: "Slot 04"
@@ -457,7 +457,7 @@ text_sensor:
     lambda: |-
       if (id(slot4_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot4_bits), (unsigned long long) id(slot4_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_05
     name: "Slot 05"
@@ -465,7 +465,7 @@ text_sensor:
     lambda: |-
       if (id(slot5_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot5_bits), (unsigned long long) id(slot5_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_06
     name: "Slot 06"
@@ -473,7 +473,7 @@ text_sensor:
     lambda: |-
       if (id(slot6_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot6_bits), (unsigned long long) id(slot6_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_07
     name: "Slot 07"
@@ -481,7 +481,7 @@ text_sensor:
     lambda: |-
       if (id(slot7_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot7_bits), (unsigned long long) id(slot7_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_08
     name: "Slot 08"
@@ -489,7 +489,7 @@ text_sensor:
     lambda: |-
       if (id(slot8_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot8_bits), (unsigned long long) id(slot8_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_09
     name: "Slot 09"
@@ -497,7 +497,7 @@ text_sensor:
     lambda: |-
       if (id(slot9_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot9_bits), (unsigned long long) id(slot9_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_10
     name: "Slot 10"
@@ -505,7 +505,7 @@ text_sensor:
     lambda: |-
       if (id(slot10_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot10_bits), (unsigned long long) id(slot10_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_11
     name: "Slot 11"
@@ -513,7 +513,7 @@ text_sensor:
     lambda: |-
       if (id(slot11_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot11_bits), (unsigned long long) id(slot11_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_12
     name: "Slot 12"
@@ -521,7 +521,7 @@ text_sensor:
     lambda: |-
       if (id(slot12_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot12_bits), (unsigned long long) id(slot12_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_13
     name: "Slot 13"
@@ -529,7 +529,7 @@ text_sensor:
     lambda: |-
       if (id(slot13_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot13_bits), (unsigned long long) id(slot13_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_14
     name: "Slot 14"
@@ -537,7 +537,7 @@ text_sensor:
     lambda: |-
       if (id(slot14_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot14_bits), (unsigned long long) id(slot14_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_15
     name: "Slot 15"
@@ -545,7 +545,7 @@ text_sensor:
     lambda: |-
       if (id(slot15_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot15_bits), (unsigned long long) id(slot15_code));
-      return std::string(b)
+      return std::string(b);
   - platform: template
     id: slot_16
     name: "Slot 16"
@@ -553,7 +553,7 @@ text_sensor:
     lambda: |-
       if (id(slot16_code) == 0) return std::string("Empty");
       char b[64]; snprintf(b, sizeof(b), "bits=%u code=%llu", id(slot16_bits), (unsigned long long) id(slot16_code));
-      return std::string(b)
+      return std::string(b);
 
 # ========== PCF8574 expanders ==========
 pcf8574:
@@ -805,7 +805,7 @@ button:
     id: transmit_slot
     name: "Transmit slot"
     on_press:
-      - script.execute: transmit_slot
+      - script.execute: tx_slot_script   # <-- renamed script target
 
   - platform: template
     id: clear_slot_btn
@@ -943,7 +943,8 @@ script:
           }
           ESP_LOGI("rf", "Cleared slot %d", s);
 
-  - id: transmit_slot
+  # renamed (was transmit_slot) to avoid clashing with button id
+  - id: tx_slot_script
     mode: queued
     then:
       - lambda: |-
