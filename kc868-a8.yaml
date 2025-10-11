@@ -17,85 +17,38 @@ esp32:
   framework:
     type: arduino
 
-# Persist preferences more quickly so slot saves survive power loss
+# Persist writes quickly so learned slots survive power loss
 preferences:
   flash_write_interval: 5s
 
-# ---------------- Web server: minimal same-origin UI at /ui ----------------
+# ---------- Built-in Web UI v3 with dashboard-style grouping ----------
 web_server:
   port: 80
-  include_internal: true
-  routes:
-    - uri: /
-      method: GET
-      handler: !lambda |-
-        const char* html =
-          "<!doctype html>"
-          "<html><head><meta charset='utf-8'>"
-          "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-          "<title>KC868-A8 UI</title>"
-          "<style>"
-          "body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#0b0f17;color:#e5e7eb;margin:0}"
-          "header{padding:12px 16px;border-bottom:1px solid #1f2937}h1{margin:0;font-size:18px}"
-          "main{padding:16px}button,input,select{background:#0f172a;color:#e5e7eb;border:1px solid #334155;border-radius:10px;padding:10px 12px;margin:4px}"
-          "</style>"
-          "</head><body>"
-          "<header><h1>KC868-A8 · Local UI</h1></header>"
-          "<main>"
-          "<h3>Relays</h3>"
-          "<div>"
-            "<button onclick=\"new Image().src='/switch/relay1/toggle?_='+Date.now()\">Relay 1 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay2/toggle?_='+Date.now()\">Relay 2 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay3/toggle?_='+Date.now()\">Relay 3 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay4/toggle?_='+Date.now()\">Relay 4 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay5/toggle?_='+Date.now()\">Relay 5 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay6/toggle?_='+Date.now()\">Relay 6 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay7/toggle?_='+Date.now()\">Relay 7 Toggle</button>"
-            "<button onclick=\"new Image().src='/switch/relay8/toggle?_='+Date.now()\">Relay 8 Toggle</button>"
-          "</div>"
-          "<h3>RF</h3>"
-          "<div>"
-            "<button onclick=\"new Image().src('/button/start_rf_learning_ui/press?_='+Date.now())\">Start Learning</button>"
-            "<button onclick=\"new Image().src('/button/transmit_learned_433/press?_='+Date.now())\">Transmit Learned</button>"
-            "<button onclick=\"new Image().src('/button/save_learned_slot/press?_='+Date.now())\">Save → Slot</button>"
-            "<button onclick=\"new Image().src('/button/transmit_slot/press?_='+Date.now())\">Transmit Slot</button>"
-            "<button onclick=\"new Image().src('/button/clear_slot/press?_='+Date.now())\">Clear Slot</button>"
-            "<button onclick=\"new Image().src('/button/learn_to_selected_slot/press?_='+Date.now())\">Learn→Save Slot</button>"
-          "</div>"
-          "<div>"
-            "Slot: <input id='slot' type='number' min='1' max='16' value='1' oninput=\"new Image().src('/number/slot_select/set?value='+this.value+'&_='+Date.now())\"> "
-            "Repeat: <input id='rep' type='number' min='1' max='30' value='10' oninput=\"new Image().src('/number/rf_repeat/set?value='+this.value+'&_='+Date.now())\"> "
-            "Pulse(µs): <input id='pls' type='number' min='200' max='600' step='10' value='350' oninput=\"new Image().src('/number/rf_pulse_len/set?value='+this.value+'&_='+Date.now())\"> "
-            "Protocol: <select id='proto' onchange=\"new Image().src('/select/rf_protocol_select/set?option='+encodeURIComponent(this.value)+'&_='+Date.now())\">"
-              "<option>Auto (rc_switch)</option><option>Protocol 1</option><option>Protocol 2</option>"
-              "<option>Protocol 3</option><option>Protocol 4</option><option>Protocol 5</option>"
-              "<option>Protocol 6</option><option>Raw</option>"
-            "</select>"
-          "</div>"
-          "<div>"
-            "Min Bits: <input type='range' min='1' max='64' value='20' oninput=\"new Image().src('/number/rf_min_bits/set?value='+this.value+'&_='+Date.now())\"> "
-            "Min RAW: <input type='range' min='0' max='200' step='5' value='40' oninput=\"new Image().src('/number/rf_min_raw_timings/set?value='+this.value+'&_='+Date.now())\"> "
-            "Quiet(ms): <input type='range' min='0' max='2000' step='50' value='200' oninput=\"new Image().src('/number/rf_quiet_ms/set?value='+this.value+'&_='+Date.now())\"> "
-          "</div>"
-          "</main></body></html>";
-        request->send(200, "text/html; charset=utf-8", html);
-
-    - uri: /ui
-      method: GET
-      handler: !lambda |-
-        // Serve the same UI at /ui for convenience
-        const char* html =
-          "<!doctype html><html><head><meta charset='utf-8'>"
-          "<meta name='viewport' content='width=device-width,initial-scale=1'>"
-          "<title>KC868-A8 UI</title></head><body>"
-          "<script>location.replace('/');</script>"
-          "If you see this, <a href='/'>click here</a>."
-          "</body></html>";
-        request->send(200, "text/html; charset=utf-8", html);
-
-          return;
-        }
-        // Let other paths fall through to default handling.
+  version: 3
+  local: true                 # serve UI assets from device (offline friendly)
+  include_internal: false     # hide any entity marked "internal: true"
+  sorting_groups:
+    - id: grp_relays
+      name: "Relays"
+      sorting_weight: 10
+    - id: grp_rf_controls
+      name: "RF Controls"
+      sorting_weight: 20
+    - id: grp_rf_settings
+      name: "RF Settings"
+      sorting_weight: 30
+    - id: grp_rf_status
+      name: "RF Status"
+      sorting_weight: 40
+    - id: grp_analog
+      name: "Analog"
+      sorting_weight: 50
+    - id: grp_inputs
+      name: "Inputs"
+      sorting_weight: 60
+    - id: grp_advanced
+      name: "Advanced"
+      sorting_weight: 90
 
 dashboard_import:
   package_import_url: github://hzkincony/kc868-a8/kc868-a8.yaml@main
@@ -266,7 +219,7 @@ globals:
   - { id: slot15_bits, type: uint8_t, restore_value: true, initial_value: '0' }
   - { id: slot16_bits, type: uint8_t, restore_value: true, initial_value: '0' }
 
-# ---------------- UI controls (selects & numbers & status text) ----------------
+# ---------------- UI controls (selects, numbers, status) ----------------
 select:
   - platform: template
     id: rf_protocol_select
@@ -282,6 +235,9 @@ select:
       - "Protocol 6"
       - "Raw"
     initial_option: "Auto (rc_switch)"
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 70
 
 number:
   - platform: template
@@ -292,15 +248,21 @@ number:
     step: 1
     optimistic: true
     initial_value: 10
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 20
 
   - platform: template
     id: rf_pulse_len
-    name: "RF Pulse Length (µs)"
+    name: "RF Pulse (µs)"
     min_value: 200
     max_value: 600
     step: 10
     optimistic: true
     initial_value: 350
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 30
 
   - platform: template
     id: slot_select
@@ -310,38 +272,50 @@ number:
     step: 1
     optimistic: true
     initial_value: 1
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 10
 
   - platform: template
     id: rf_min_bits
-    name: "RF Min Bits"
+    name: "Min Bits (learn/match)"
     min_value: 1
     max_value: 64
     step: 1
     optimistic: true
     initial_value: 20
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 40
 
   - platform: template
     id: rf_min_raw_timings
-    name: "RF Min RAW Timings"
+    name: "Min RAW Timings (learn)"
     min_value: 0
     max_value: 200
     step: 5
     optimistic: true
     initial_value: 40
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 50
 
   - platform: template
     id: rf_quiet_ms
-    name: "RF Quiet (ms)"
+    name: "Quiet Time (ms)"
     min_value: 0
     max_value: 2000
     step: 50
     optimistic: true
     initial_value: 200
+    web_server:
+      sorting_group_id: grp_rf_settings
+      sorting_weight: 60
 
 text_sensor:
   - platform: template
     id: learned_status
-    name: "RF Learned Status"
+    name: "Learned Status"
     update_interval: 2s
     lambda: |-
       if (id(learned_type) == "rc_switch" && id(learned_bin).size() > 0) {
@@ -355,6 +329,9 @@ text_sensor:
         return std::string(buf);
       }
       return std::string("none");
+    web_server:
+      sorting_group_id: grp_rf_status
+      sorting_weight: 10
 
 # ---------------- PCF8574 expanders ----------------
 pcf8574:
@@ -367,67 +344,92 @@ pcf8574:
 switch:
   - platform: gpio
     id: relay1
-    name: "relay1"
+    name: "Relay 1"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 0
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 10
 
   - platform: gpio
     id: relay2
-    name: "relay2"
+    name: "Relay 2"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 1
+    # Relay2 is used for the 10s pulse when a stored fob is received
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 20
 
   - platform: gpio
     id: relay3
-    name: "relay3"
+    name: "Relay 3"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 2
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 30
 
   - platform: gpio
     id: relay4
-    name: "relay4"
+    name: "Relay 4"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 3
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 40
 
   - platform: gpio
     id: relay5
-    name: "relay5"
+    name: "Relay 5"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 4
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 50
 
   - platform: gpio
     id: relay6
-    name: "relay6"
+    name: "Relay 6"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 5
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 60
 
   - platform: gpio
     id: relay7
-    name: "relay7"
+    name: "Relay 7"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 6
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 70
 
   - platform: gpio
     id: relay8
-    name: "relay8 (learning indicator)"
+    name: "Relay 8 (learning indicator)"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 7
       inverted: true
+    web_server:
+      sorting_group_id: grp_relays
+      sorting_weight: 80
 
 # ---------------- ADC with threshold + change-only logging ----------------
 sensor:
@@ -469,6 +471,9 @@ sensor:
                 switch.is_on: relay1
               then:
                 - switch.turn_off: relay1
+    web_server:
+      sorting_group_id: grp_analog
+      sorting_weight: 10
 
   - platform: adc
     id: a2_volts
@@ -497,12 +502,15 @@ sensor:
       - above: 2.05
         then:
           - script.execute: send_learned_rf
+    web_server:
+      sorting_group_id: grp_analog
+      sorting_weight: 20
 
 # ---------------- Digital inputs ----------------
 binary_sensor:
   - platform: gpio
     id: input1
-    name: "input1 (learn RF)"
+    name: "Input 1 (learn RF)"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 0
@@ -511,120 +519,155 @@ binary_sensor:
       - delayed_on_off: 20ms
     on_press:
       - script.execute: start_learning
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 10
 
   - platform: gpio
     id: input2
-    name: "input2"
+    name: "Input 2"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 1
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 20
 
   - platform: gpio
     id: input3
-    name: "input3"
+    name: "Input 3"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 2
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 30
 
   - platform: gpio
     id: input4
-    name: "input4"
+    name: "Input 4"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 3
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 40
 
   - platform: gpio
     id: input5
-    name: "input5"
+    name: "Input 5"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 4
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 50
 
   - platform: gpio
     id: input6
-    name: "input6"
+    name: "Input 6"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 5
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 60
 
   - platform: gpio
     id: input7
-    name: "input7"
+    name: "Input 7"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 6
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 70
 
   - platform: gpio
     id: input8
-    name: "input8"
+    name: "Input 8"
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 7
       inverted: true
     filters:
       - delayed_on_off: 20ms
+    web_server:
+      sorting_group_id: grp_inputs
+      sorting_weight: 80
 
 # ---------------- Buttons -> scripts ----------------
 button:
   - platform: template
     id: start_rf_learning_ui
-    name: "Start RF learning (UI)"
+    name: "Start RF Learning"
     on_press:
       - script.execute: start_learning
+    web_server:
+      sorting_group_id: grp_rf_controls
+      sorting_weight: 10
 
   - platform: template
     id: transmit_learned_433
-    name: "Transmit learned 433"
+    name: "Transmit Learned"
     on_press:
       - script.execute: send_learned_rf
-
-  - platform: template
-    id: save_learned_slot
-    name: "Save learned slot"
-    on_press:
-      - script.execute: save_learned_to_slot
-
-  - platform: template
-    id: transmit_slot
-    name: "Transmit slot"
-    on_press:
-      - script.execute: tx_slot_script
-
-  - platform: template
-    id: clear_slot
-    name: "Clear slot"
-    on_press:
-      - script.execute: clear_slot_script
+    web_server:
+      sorting_group_id: grp_rf_controls
+      sorting_weight: 20
 
   - platform: template
     id: learn_to_selected_slot
-    name: "Learn to selected slot"
+    name: "Learn → Save Slot"
     on_press:
       - script.execute: start_learning
       - delay: 15s
       - script.execute: save_learned_to_slot
+    web_server:
+      sorting_group_id: grp_rf_controls
+      sorting_weight: 30
 
+  - platform: template
+    id: transmit_slot
+    name: "Transmit Slot"
+    on_press:
+      - script.execute: tx_slot_script
+    web_server:
+      sorting_group_id: grp_rf_controls
+      sorting_weight: 40
+
+  - platform: template
+    id: clear_slot
+    name: "Clear Slot"
+    on_press:
+      - script.execute: clear_slot_script
+    web_server:
+      sorting_group_id: grp_rf_controls
+      sorting_weight: 50
+
+  # Hidden debug helper
   - platform: template
     id: log_learned_values
     name: "Log learned values"
+    internal: true
     on_press:
       - lambda: |-
           ESP_LOGI("rf", "Type=%s code=%llu bits=%u raw_count=%u",
@@ -718,7 +761,6 @@ script:
           }
           ESP_LOGI("rf", "Saved rc_switch to slot %d: bits=%u code=%llu",
                    s, bits, (unsigned long long) code);
-      # give Preferences time to flush (paired with flash_write_interval)
       - delay: 6s
       - logger.log: "Saved to flash."
 
@@ -746,7 +788,7 @@ script:
             case 16: id(slot16_code)=0; id(slot16_bits)=0; break;
             default: ESP_LOGW("rf", "Slot out of range"); return;
           }
-          ESP_LOGI("rf", "Cleared slot %d", s)
+          ESP_LOGI("rf", "Cleared slot %d", s);
       - delay: 6s
       - logger.log: "Cleared from flash."
 
@@ -797,7 +839,7 @@ script:
                 else:
                   - script.execute: send_rc_switch_433
 
-  # protocol helpers
+  # --- protocol helpers ---
   - id: send_rc_switch_300
     mode: parallel
     then:
@@ -809,11 +851,41 @@ script:
                 code: !lambda 'return id(learned_bin);'
                 protocol: { pulse_length: 300, sync: [1,31], zero: [1,3], one: [3,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [1,10], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [30,71], zero: [4,11], one: [9,6] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [1,6], zero: [1,3], one: [3,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [6,14], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 300, sync: [1,23], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 300, sync: [1,10], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 300, sync: [30,71], zero: [4,11], one: [9,6] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 300, sync: [1,6], zero: [1,3], one: [3,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 300, sync: [6,14], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 300, sync: [1,23], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
 
   - id: send_rc_switch_350
     mode: parallel
@@ -826,11 +898,41 @@ script:
                 code: !lambda 'return id(learned_bin);'
                 protocol: { pulse_length: 350, sync: [1,31], zero: [1,3], one: [3,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [1,10], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [30,71], zero: [4,11], one: [9,6] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [1,6], zero: [1,3], one: [3,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [6,14], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 350, sync: [1,23], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 350, sync: [1,10], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 350, sync: [30,71], zero: [4,11], one: [9,6] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 350, sync: [1,6], zero: [1,3], one: [3,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 350, sync: [6,14], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 350, sync: [1,23], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
 
   - id: send_rc_switch_433
     mode: parallel
@@ -843,11 +945,41 @@ script:
                 code: !lambda 'return id(learned_bin);'
                 protocol: { pulse_length: 433, sync: [1,31], zero: [1,3], one: [3,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [1,10], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [30,71], zero: [4,11], one: [9,6] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [1,6], zero: [1,3], one: [3,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [6,14], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
-      - if: { condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }, then: [ { remote_transmitter.transmit_rc_switch_raw: { code: !lambda 'return id(learned_bin);', protocol: { pulse_length: 433, sync: [1,23], zero: [1,2], one: [2,1] }, repeat: !lambda 'return (uint32_t) id(rf_repeat).state;' } } ] }
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 433, sync: [1,10], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 433, sync: [30,71], zero: [4,11], one: [9,6] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 433, sync: [1,6], zero: [1,3], one: [3,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 433, sync: [6,14], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
+      - if:
+          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
+          then:
+            - remote_transmitter.transmit_rc_switch_raw:
+                code: !lambda 'return id(learned_bin);'
+                protocol: { pulse_length: 433, sync: [1,23], zero: [1,2], one: [2,1] }
+                repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
 
 # ---------------- Logging / API ----------------
 logger:
