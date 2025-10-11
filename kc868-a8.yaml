@@ -139,15 +139,15 @@ globals:
     restore_value: no
     initial_value: 'std::vector<int32_t>()'
 
-  # Last-logged values for A1/A2 (to reduce log spam)
-  - id: last_a1_logged
+   - id: last_a1_logged
     type: float
     restore_value: no
-    initial_value: 'nan'
+    initial_value: 'NAN'      # was 'nan'
+
   - id: last_a2_logged
     type: float
     restore_value: no
-    initial_value: 'nan'
+    initial_value: 'NAN'      # was 'nan'
 
 # ---------- UI controls ----------
 select:
