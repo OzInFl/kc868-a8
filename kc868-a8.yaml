@@ -1,6 +1,5 @@
 substitutions:
-  name: kc868-a8
-
+  name: HIDEAWAYS
 esphome:
   name: ${name}
   name_add_mac_suffix: true
