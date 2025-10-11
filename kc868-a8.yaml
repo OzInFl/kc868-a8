@@ -64,8 +64,9 @@ remote_receiver:
                 if (bits == 0) bits = id(learned_bits);
                 id(learned_bits) = bits;
                 std::string s; s.reserve(bits);
-                for (int i = bits - 1; i >= 0; --i)
+                for (int i = bits - 1; i >= 0; --i) {
                   s.push_back((x.code & (1ULL << i)) ? '1' : '0');
+                }
                 id(learned_bin) = s;
                 id(learned_type) = std::string("rc_switch");
                 ESP_LOGI("rf", "Learned rc_switch: code=%llu bits=%u",
@@ -73,7 +74,7 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # 2) Runtime match: if not learning and we have a learned rc_switch code, pulse Relay2
+      # 2) Runtime match: if not learning and we have a learned rc_switch code, pulse Relay2 for 10s
       - if:
           condition:
             lambda: |-
@@ -82,7 +83,7 @@ remote_receiver:
               uint8_t bits = 64 - __builtin_clzll(x.code);
               return (bits == id(learned_bits)) && (x.code == id(learned_code));
           then:
-            - logger.log: "Matched learned keyfob → Relay2 pulse"
+            - logger.log: "Matched learned keyfob → Relay2 pulse (10s)"
             - switch.turn_on: relay2
             - delay: 10s
             - switch.turn_off: relay2
@@ -97,7 +98,9 @@ remote_receiver:
             - lambda: |-
                 id(learned_raw).clear();
                 id(learned_raw).reserve(x.size());
-                for (auto v : x) id(learned_raw).push_back(v);
+                for (auto v : x) {
+                  id(learned_raw).push_back(v);
+                }
                 id(learned_type) = std::string("raw");
                 ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
             - lambda: 'id(is_learning) = false;'
@@ -139,15 +142,16 @@ globals:
     restore_value: no
     initial_value: 'std::vector<int32_t>()'
 
-   - id: last_a1_logged
+  # Last-logged values for A1/A2 (to reduce log spam)
+  - id: last_a1_logged
     type: float
     restore_value: no
-    initial_value: 'NAN'      # was 'nan'
+    initial_value: 'NAN'
 
   - id: last_a2_logged
     type: float
     restore_value: no
-    initial_value: 'NAN'      # was 'nan'
+    initial_value: 'NAN'
 
 # ---------- UI controls ----------
 select:
@@ -206,42 +210,66 @@ switch:
   - platform: gpio
     id: relay1
     name: "relay1"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 0, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 0
+      inverted: true
 
   - platform: gpio
     id: relay2
     name: "relay2"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 1, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 1
+      inverted: true
 
   - platform: gpio
     id: relay3
     name: "relay3"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 2, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 2
+      inverted: true
 
   - platform: gpio
     id: relay4
     name: "relay4"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 3, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 3
+      inverted: true
 
   - platform: gpio
     id: relay5
     name: "relay5"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 4, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 4
+      inverted: true
 
   - platform: gpio
     id: relay6
     name: "relay6"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 5, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 5
+      inverted: true
 
   - platform: gpio
     id: relay7
     name: "relay7"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 6, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 6
+      inverted: true
 
   - platform: gpio
     id: relay8
     name: "relay8 (learning indicator)"
-    pin: { pcf8574: pcf8574_hub_out_1, number: 7, inverted: true }
+    pin:
+      pcf8574: pcf8574_hub_out_1
+      number: 7
+      inverted: true
 
 # ---------- Analog thresholds with "log only on change" ----------
 sensor:
@@ -252,7 +280,10 @@ sensor:
     attenuation: 12db
     update_interval: 300ms
     filters:
-      - median: { window_size: 5, send_every: 2, send_first_at: 1 }
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
       # Map ADC (~0–3.3 V) back to terminal 0–5 V
       - calibrate_linear:
           - 0.00 -> 0.00
@@ -272,13 +303,16 @@ sensor:
       - above: 2.05
         then:
           - if:
-              condition: { not: { switch.is_on: relay1 } }
+              condition:
+                not:
+                  switch.is_on: relay1
               then:
                 - switch.turn_on: relay1
       - below: 1.95
         then:
           - if:
-              condition: { switch.is_on: relay1 }
+              condition:
+                switch.is_on: relay1
               then:
                 - switch.turn_off: relay1
 
@@ -290,7 +324,10 @@ sensor:
     update_interval: 300ms
     filters:
       - throttle: 1s
-      - median: { window_size: 5, send_every: 2, send_first_at: 1 }
+      - median:
+          window_size: 5
+          send_every: 2
+          send_first_at: 1
       - calibrate_linear:
           - 0.00 -> 0.00
           - 3.30 -> 5.00
@@ -315,52 +352,84 @@ binary_sensor:
   - platform: gpio
     id: input1
     name: "input1 (learn RF)"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 0, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 0
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
     on_press:
       - script.execute: start_learning
 
   - platform: gpio
     id: input2
     name: "input2"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 1, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 1
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
   - platform: gpio
     id: input3
     name: "input3"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 2, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 2
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
   - platform: gpio
     id: input4
     name: "input4"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 3, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 3
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
   - platform: gpio
     id: input5
     name: "input5"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 4, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 4
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
   - platform: gpio
     id: input6
     name: "input6"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 5, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 5
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
   - platform: gpio
     id: input7
     name: "input7"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 6, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 6
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
   - platform: gpio
     id: input8
     name: "input8"
-    pin: { pcf8574: pcf8574_hub_in_1, number: 7, inverted: true }
-    filters: [ delayed_on_off: 20ms ]
+    pin:
+      pcf8574: pcf8574_hub_in_1
+      number: 7
+      inverted: true
+    filters:
+      - delayed_on_off: 20ms
 
 # ---------- Web UI buttons ----------
 button:
@@ -423,174 +492,278 @@ script:
                         lambda: 'return id(rf_protocol_select).state == "Auto (rc_switch)";'
                       then:
                         - if:
-                            condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                            condition:
+                              lambda: 'return id(rf_pulse_preset).state == "300";'
                             then:
                               - remote_transmitter.transmit_rc_switch_raw:
                                   code: !lambda 'return id(learned_bin);'
-                                  protocol: { pulse_length: 300, sync: [1,31], zero: [1,3], one: [3,1] }
+                                  protocol:
+                                    pulse_length: 300
+                                    sync: [1, 31]
+                                    zero: [1, 3]
+                                    one: [3, 1]
                                   repeat: 10
                             else:
                               - if:
-                                  condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                  condition:
+                                    lambda: 'return id(rf_pulse_preset).state == "433";'
                                   then:
                                     - remote_transmitter.transmit_rc_switch_raw:
                                         code: !lambda 'return id(learned_bin);'
-                                        protocol: { pulse_length: 433, sync: [1,31], zero: [1,3], one: [3,1] }
+                                        protocol:
+                                          pulse_length: 433
+                                          sync: [1, 31]
+                                          zero: [1, 3]
+                                          one: [3, 1]
                                         repeat: 10
                                   else:
                                     - remote_transmitter.transmit_rc_switch_raw:
                                         code: !lambda 'return id(learned_bin);'
-                                        protocol: { pulse_length: 350, sync: [1,31], zero: [1,3], one: [3,1] }
+                                        protocol:
+                                          pulse_length: 350
+                                          sync: [1, 31]
+                                          zero: [1, 3]
+                                          one: [3, 1]
                                         repeat: 10
                       else:
                         # ---- Protocol 1 .. 6 with pulse preset ----
                         - if:
-                            condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 1";' }
+                            condition:
+                              lambda: 'return id(rf_protocol_select).state == "Protocol 1";'
                             then:
                               - if:
-                                  condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                                  condition:
+                                    lambda: 'return id(rf_pulse_preset).state == "300";'
                                   then:
                                     - remote_transmitter.transmit_rc_switch_raw:
                                         code: !lambda 'return id(learned_bin);'
-                                        protocol: { pulse_length: 300, sync: [1,31], zero: [1,3], one: [3,1] }
+                                        protocol:
+                                          pulse_length: 300
+                                          sync: [1, 31]
+                                          zero: [1, 3]
+                                          one: [3, 1]
                                         repeat: 10
                                   else:
                                     - if:
-                                        condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                        condition:
+                                          lambda: 'return id(rf_pulse_preset).state == "433";'
                                         then:
                                           - remote_transmitter.transmit_rc_switch_raw:
                                               code: !lambda 'return id(learned_bin);'
-                                              protocol: { pulse_length: 433, sync: [1,31], zero: [1,3], one: [3,1] }
+                                              protocol:
+                                                pulse_length: 433
+                                                sync: [1, 31]
+                                                zero: [1, 3]
+                                                one: [3, 1]
                                               repeat: 10
                                         else:
                                           - remote_transmitter.transmit_rc_switch_raw:
                                               code: !lambda 'return id(learned_bin);'
-                                              protocol: { pulse_length: 350, sync: [1,31], zero: [1,3], one: [3,1] }
+                                              protocol:
+                                                pulse_length: 350
+                                                sync: [1, 31]
+                                                zero: [1, 3]
+                                                one: [3, 1]
                                               repeat: 10
 
                             else:
                               - if:
-                                  condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 2";' }
+                                  condition:
+                                    lambda: 'return id(rf_protocol_select).state == "Protocol 2";'
                                   then:
                                     - if:
-                                        condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                                        condition:
+                                          lambda: 'return id(rf_pulse_preset).state == "300";'
                                         then:
                                           - remote_transmitter.transmit_rc_switch_raw:
                                               code: !lambda 'return id(learned_bin);'
-                                              protocol: { pulse_length: 300, sync: [1,10], zero: [1,2], one: [2,1] }
+                                              protocol:
+                                                pulse_length: 300
+                                                sync: [1, 10]
+                                                zero: [1, 2]
+                                                one: [2, 1]
                                               repeat: 10
                                         else:
                                           - if:
-                                              condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                              condition:
+                                                lambda: 'return id(rf_pulse_preset).state == "433";'
                                               then:
                                                 - remote_transmitter.transmit_rc_switch_raw:
                                                     code: !lambda 'return id(learned_bin);'
-                                                    protocol: { pulse_length: 433, sync: [1,10], zero: [1,2], one: [2,1] }
+                                                    protocol:
+                                                      pulse_length: 433
+                                                      sync: [1, 10]
+                                                      zero: [1, 2]
+                                                      one: [2, 1]
                                                     repeat: 10
                                               else:
                                                 - remote_transmitter.transmit_rc_switch_raw:
                                                     code: !lambda 'return id(learned_bin);'
-                                                    protocol: { pulse_length: 350, sync: [1,10], zero: [1,2], one: [2,1] }
+                                                    protocol:
+                                                      pulse_length: 350
+                                                      sync: [1, 10]
+                                                      zero: [1, 2]
+                                                      one: [2, 1]
                                                     repeat: 10
 
                                   else:
                                     - if:
-                                        condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 3";' }
+                                        condition:
+                                          lambda: 'return id(rf_protocol_select).state == "Protocol 3";'
                                         then:
                                           - if:
-                                              condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                                              condition:
+                                                lambda: 'return id(rf_pulse_preset).state == "300";'
                                               then:
                                                 - remote_transmitter.transmit_rc_switch_raw:
                                                     code: !lambda 'return id(learned_bin);'
-                                                    protocol: { pulse_length: 300, sync: [30,71], zero: [4,11], one: [9,6] }
+                                                    protocol:
+                                                      pulse_length: 300
+                                                      sync: [30, 71]
+                                                      zero: [4, 11]
+                                                      one: [9, 6]
                                                     repeat: 10
                                               else:
                                                 - if:
-                                                    condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                                    condition:
+                                                      lambda: 'return id(rf_pulse_preset).state == "433";'
                                                     then:
                                                       - remote_transmitter.transmit_rc_switch_raw:
                                                           code: !lambda 'return id(learned_bin);'
-                                                          protocol: { pulse_length: 433, sync: [30,71], zero: [4,11], one: [9,6] }
+                                                          protocol:
+                                                            pulse_length: 433
+                                                            sync: [30, 71]
+                                                            zero: [4, 11]
+                                                            one: [9, 6]
                                                           repeat: 10
                                                     else:
                                                       - remote_transmitter.transmit_rc_switch_raw:
                                                           code: !lambda 'return id(learned_bin);'
-                                                          protocol: { pulse_length: 350, sync: [30,71], zero: [4,11], one: [9,6] }
+                                                          protocol:
+                                                            pulse_length: 350
+                                                            sync: [30, 71]
+                                                            zero: [4, 11]
+                                                            one: [9, 6]
                                                           repeat: 10
 
                                         else:
                                           - if:
-                                              condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 4";' }
+                                              condition:
+                                                lambda: 'return id(rf_protocol_select).state == "Protocol 4";'
                                               then:
                                                 - if:
-                                                    condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                                                    condition:
+                                                      lambda: 'return id(rf_pulse_preset).state == "300";'
                                                     then:
                                                       - remote_transmitter.transmit_rc_switch_raw:
                                                           code: !lambda 'return id(learned_bin);'
-                                                          protocol: { pulse_length: 300, sync: [1,6], zero: [1,3], one: [3,1] }
+                                                          protocol:
+                                                            pulse_length: 300
+                                                            sync: [1, 6]
+                                                            zero: [1, 3]
+                                                            one: [3, 1]
                                                           repeat: 10
                                                     else:
                                                       - if:
-                                                          condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                                          condition:
+                                                            lambda: 'return id(rf_pulse_preset).state == "433";'
                                                           then:
                                                             - remote_transmitter.transmit_rc_switch_raw:
                                                                 code: !lambda 'return id(learned_bin);'
-                                                                protocol: { pulse_length: 433, sync: [1,6], zero: [1,3], one: [3,1] }
+                                                                protocol:
+                                                                  pulse_length: 433
+                                                                  sync: [1, 6]
+                                                                  zero: [1, 3]
+                                                                  one: [3, 1]
                                                                 repeat: 10
                                                           else:
                                                             - remote_transmitter.transmit_rc_switch_raw:
                                                                 code: !lambda 'return id(learned_bin);'
-                                                                protocol: { pulse_length: 350, sync: [1,6], zero: [1,3], one: [3,1] }
+                                                                protocol:
+                                                                  pulse_length: 350
+                                                                  sync: [1, 6]
+                                                                  zero: [1, 3]
+                                                                  one: [3, 1]
                                                                 repeat: 10
 
                                               else:
                                                 - if:
-                                                    condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 5";' }
+                                                    condition:
+                                                      lambda: 'return id(rf_protocol_select).state == "Protocol 5";'
                                                     then:
                                                       - if:
-                                                          condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                                                          condition:
+                                                            lambda: 'return id(rf_pulse_preset).state == "300";'
                                                           then:
                                                             - remote_transmitter.transmit_rc_switch_raw:
                                                                 code: !lambda 'return id(learned_bin);'
-                                                                protocol: { pulse_length: 300, sync: [6,14], zero: [1,2], one: [2,1] }
+                                                                protocol:
+                                                                  pulse_length: 300
+                                                                  sync: [6, 14]
+                                                                  zero: [1, 2]
+                                                                  one: [2, 1]
                                                                 repeat: 10
                                                           else:
                                                             - if:
-                                                                condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                                                condition:
+                                                                  lambda: 'return id(rf_pulse_preset).state == "433";'
                                                                 then:
                                                                   - remote_transmitter.transmit_rc_switch_raw:
                                                                       code: !lambda 'return id(learned_bin);'
-                                                                      protocol: { pulse_length: 433, sync: [6,14], zero: [1,2], one: [2,1] }
+                                                                      protocol:
+                                                                        pulse_length: 433
+                                                                        sync: [6, 14]
+                                                                        zero: [1, 2]
+                                                                        one: [2, 1]
                                                                       repeat: 10
                                                                 else:
                                                                   - remote_transmitter.transmit_rc_switch_raw:
                                                                       code: !lambda 'return id(learned_bin);'
-                                                                      protocol: { pulse_length: 350, sync: [6,14], zero: [1,2], one: [2,1] }
+                                                                      protocol:
+                                                                        pulse_length: 350
+                                                                        sync: [6, 14]
+                                                                        zero: [1, 2]
+                                                                        one: [2, 1]
                                                                       repeat: 10
 
                                                     else:
                                                       - if:
-                                                          condition: { lambda: 'return id(rf_protocol_select).state == "Protocol 6";' }
+                                                          condition:
+                                                            lambda: 'return id(rf_protocol_select).state == "Protocol 6";'
                                                           then:
                                                             - if:
-                                                                condition: { lambda: 'return id(rf_pulse_preset).state == "300";' }
+                                                                condition:
+                                                                  lambda: 'return id(rf_pulse_preset).state == "300";'
                                                                 then:
                                                                   - remote_transmitter.transmit_rc_switch_raw:
                                                                       code: !lambda 'return id(learned_bin);'
-                                                                      protocol: { pulse_length: 300, sync: [1,23], zero: [1,2], one: [2,1] }
+                                                                      protocol:
+                                                                        pulse_length: 300
+                                                                        sync: [1, 23]
+                                                                        zero: [1, 2]
+                                                                        one: [2, 1]
                                                                       repeat: 10
                                                                 else:
                                                                   - if:
-                                                                      condition: { lambda: 'return id(rf_pulse_preset).state == "433";' }
+                                                                      condition:
+                                                                        lambda: 'return id(rf_pulse_preset).state == "433";'
                                                                       then:
                                                                         - remote_transmitter.transmit_rc_switch_raw:
                                                                             code: !lambda 'return id(learned_bin);'
-                                                                            protocol: { pulse_length: 433, sync: [1,23], zero: [1,2], one: [2,1] }
+                                                                            protocol:
+                                                                              pulse_length: 433
+                                                                              sync: [1, 23]
+                                                                              zero: [1, 2]
+                                                                              one: [2, 1]
                                                                             repeat: 10
                                                                       else:
                                                                         - remote_transmitter.transmit_rc_switch_raw:
                                                                             code: !lambda 'return id(learned_bin);'
-                                                                            protocol: { pulse_length: 350, sync: [1,23], zero: [1,2], one: [2,1] }
+                                                                            protocol:
+                                                                              pulse_length: 350
+                                                                              sync: [1, 23]
+                                                                              zero: [1, 2]
+                                                                              one: [2, 1]
                                                                             repeat: 10
                 else:
                   - logger.log: "No rc_switch code learned."
