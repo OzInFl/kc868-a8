@@ -7,7 +7,6 @@ esphome:
   project:
     name: kincony.kc868-a8
     version: "1"
-  # Safety: ensure relay2 OFF after boot
   on_boot:
     priority: 600
     then:
@@ -35,7 +34,7 @@ i2c:
   scan: true
   id: bus_a
 
-# Ethernet (use new 'clk' style)
+# Ethernet (new 'clk' style)
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
@@ -45,10 +44,10 @@ ethernet:
     mode: CLK_OUT
   phy_addr: 0
 
-# ---------- 433 MHz RF (per your working wiring: RX=GPIO15, TX=GPIO2) ----------
+# ---------- 433 MHz RF (per your wiring: RX=GPIO15, TX=GPIO2) ----------
 remote_receiver:
   pin:
-    number: GPIO15        # RECEIVER DATA (you found RX/TX needed reversing)
+    number: GPIO15
     mode: INPUT_PULLDOWN
   dump:
     - rc_switch
@@ -57,9 +56,9 @@ remote_receiver:
   filter: 100us
   idle: 8ms
 
-  # Learn rc_switch when in learning + protocol select is Auto
   on_rc_switch:
     then:
+      # Learn when in Auto(rc_switch)
       - if:
           condition:
             lambda: 'return id(is_learning) && id(rf_protocol_select).state == "Auto (rc_switch)";'
@@ -80,13 +79,13 @@ remote_receiver:
             - lambda: 'id(is_learning) = false;'
             - switch.turn_off: relay8
 
-      # Runtime: if any stored slot matches, pulse Relay2 for 10s
+      # Runtime match → pulse Relay2 for 10s if any stored code matches
       - if:
           condition:
             lambda: |-
               if (id(is_learning)) return false;
               uint8_t bits = 64 - __builtin_clzll(x.code);
-              auto match = [&](uint64_t c, uint8_t b){ return (c!=0 && b==bits && c==x.code); };
+              auto match = [&](uint64_t c, uint8_t b){ return (c != 0 && b == bits && c == x.code); };
               if (match(id(slot1_code), id(slot1_bits))) return true;
               if (match(id(slot2_code), id(slot2_bits))) return true;
               if (match(id(slot3_code), id(slot3_bits))) return true;
@@ -110,7 +109,7 @@ remote_receiver:
             - delay: 10s
             - switch.turn_off: relay2
 
-  # Learn RAW when in learning + protocol select is Raw
+  # RAW learning (only when protocol select = Raw)
   on_raw:
     then:
       - if:
@@ -127,91 +126,186 @@ remote_receiver:
             - switch.turn_off: relay8
 
 remote_transmitter:
-  pin: GPIO2             # TRANSMITTER DATA
+  pin: GPIO2
   carrier_duty_percent: 100%
 
-# ---------- Globals (state, learned, slots, analog last-logged) ----------
+# ---------- Globals (fixed to multi-line YAML) ----------
 globals:
   - id: is_learning
     type: bool
-    restore_value: no
+    restore_value: false
     initial_value: 'false'
 
   - id: learned_type
     type: std::string
-    restore_value: yes
+    restore_value: true
     initial_value: '"none"'
 
   - id: learned_code
     type: uint64_t
-    restore_value: yes
+    restore_value: true
     initial_value: '0'
 
   - id: learned_bits
     type: uint8_t
-    restore_value: yes
+    restore_value: true
     initial_value: '24'
 
   - id: learned_bin
     type: std::string
-    restore_value: yes
+    restore_value: true
     initial_value: '""'
 
   - id: learned_raw
     type: std::vector<int32_t>
-    restore_value: no
+    restore_value: false
     initial_value: 'std::vector<int32_t>()'
 
-  # Two helper strings (for slot transmit)
   - id: tmp_bin
     type: std::string
-    restore_value: no
+    restore_value: false
     initial_value: '""'
 
-  # Last-logged values for A1/A2 (to reduce log spam)
   - id: last_a1_logged
     type: float
-    restore_value: no
+    restore_value: false
     initial_value: 'NAN'
+
   - id: last_a2_logged
     type: float
-    restore_value: no
+    restore_value: false
     initial_value: 'NAN'
 
-  # ----- RF code book: 16 slots (code+bits, persistent) -----
-  - id: slot1_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot2_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot3_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot4_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot5_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot6_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot7_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot8_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot9_code   ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot10_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot11_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot12_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot13_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot14_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot15_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
-  - id: slot16_code  ; type: uint64_t ; restore_value: yes ; initial_value: '0'
+  # ----- RF code book: 16 slots (code + bits) -----
+  - id: slot1_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot2_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot3_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot4_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot5_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot6_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot7_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot8_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot9_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot10_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot11_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot12_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot13_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot14_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot15_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot16_code
+    type: uint64_t
+    restore_value: true
+    initial_value: '0'
 
-  - id: slot1_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot2_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot3_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot4_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot5_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot6_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot7_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot8_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot9_bits   ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot10_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot11_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot12_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot13_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot14_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot15_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
-  - id: slot16_bits  ; type: uint8_t  ; restore_value: yes ; initial_value: '0'
+  - id: slot1_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot2_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot3_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot4_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot5_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot6_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot7_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot8_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot9_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot10_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot11_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot12_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot13_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot14_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot15_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
+  - id: slot16_bits
+    type: uint8_t
+    restore_value: true
+    initial_value: '0'
 
 # ---------- UI controls ----------
 select:
@@ -540,7 +634,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 0
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
     on_press:
@@ -552,7 +647,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 1
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -562,7 +658,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 2
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -572,7 +669,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 3
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -582,7 +680,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 4
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -592,7 +691,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 5
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -602,7 +702,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 6
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -612,7 +713,8 @@ binary_sensor:
     pin:
       pcf8574: pcf8574_hub_in_1
       number: 7
-    inverted: true
+      mode: INPUT
+      inverted: true
     filters:
       - delayed_on_off: 20ms
 
@@ -660,7 +762,6 @@ button:
 
 # ---------- Scripts ----------
 script:
-  # Enter 15s learning window (Relay8 indicator)
   - id: start_learning
     mode: restart
     then:
@@ -677,7 +778,6 @@ script:
             - switch.turn_off: relay8
             - lambda: 'ESP_LOGW("rf", "Learning timed out.");'
 
-  # Send learned RF (RAW or rc_switch via 300/350/433 blocks)
   - id: send_learned_rf
     mode: queued
     then:
@@ -715,7 +815,6 @@ script:
                 else:
                   - logger.log: "No rc_switch code learned."
 
-  # Save learned rc_switch → selected slot
   - id: save_learned_to_slot
     mode: queued
     then:
@@ -748,7 +847,6 @@ script:
           }
           ESP_LOGI("rf", "Saved rc_switch to slot %d: bits=%u code=%llu", s, bits, (unsigned long long) code);
 
-  # Clear selected slot
   - id: clear_slot
     mode: queued
     then:
@@ -775,7 +873,6 @@ script:
           }
           ESP_LOGI("rf", "Cleared slot %d", s);
 
-  # Transmit selected slot (build bin, reuse same 300/350/433 blocks)
   - id: transmit_slot
     mode: queued
     then:
@@ -805,7 +902,6 @@ script:
             ESP_LOGW("rf", "Slot %d empty", s);
             return;
           }
-          // Build bitstring into learned_bin (reuse sender scripts)
           std::string bin; bin.reserve(bits);
           for (int i = bits - 1; i >= 0; --i)
             bin.push_back((code & (1ULL << i)) ? '1' : '0');
@@ -825,7 +921,7 @@ script:
                 else:
                   - script.execute: send_rc_switch_433
 
-  # Helper scripts: static protocol blocks (no templating inside 'protocol:')
+  # Helper scripts: static protocol blocks
   - id: send_rc_switch_300
     mode: parallel
     then:
