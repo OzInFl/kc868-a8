@@ -1,5 +1,12 @@
 # KC868-A8 · ESPHome firmware (with RF learning, 16 slots, and modern Web UI)
 
+<p align="center">
+  <a href="https://ozinfl.github.io/kc868-a8/">
+    <img src="https://img.shields.io/badge/Install%20Firmware-ESP%20Web%20Tools-0a7cff?logo=espressif&logoColor=white&style=for-the-badge" alt="Install firmware with ESP Web Tools">
+  </a>
+</p>
+
+
 > A production-ready ESPHome config for the **Kincony KC868-A8** PLC board:
 > - **8 relays**, **8 digital inputs**, **LAN8720 Ethernet**, **2x analog inputs**
 > - **433 MHz receiver/transmitter** support with **learn & replay**
@@ -101,23 +108,90 @@ Uses ESPHome **Web Server v3** with sorting groups to make the stock device page
 3. Plug the KC868-A8 via USB (or use network OTA) and **Install**.
 
 ### Option B — GitHub Actions + GitHub Pages (in-browser flash)
-This proj
+This project follows the **ESPHome Project Template** pattern where CI builds firmware and GitHub Pages hosts a site with an **“Install”** button powered by **ESP Web Tools**. Steps (high-level):
 
+1. Use the repository template, or configure your workflows (`.github/workflows/*.yml`) to build your YAML(s).
+2. Enable **Pages** and point it at the **GitHub Actions** artifact.
+3. Visit your Pages site and click **Install** to flash over WebUSB/WebSerial.
 
-IO pin wiring (RX on GPIO15, TX on GPIO2)
+> For the general template flow, see the upstream template’s README (generate repo, tweak workflows, and deploy to Pages). :contentReference[oaicite:2]{index=2}
 
-A1 threshold → Relay1 ON/OFF (with hysteresis) + “log on change”
+---
 
-A2 threshold → transmit learned RF
+## RF Learning & Slots
 
-Learning via UI button or DI1 (Relay8 shows learning window)
+- **Start Learning**
+  - Choose **RF Protocol**:  
+    - **Auto (rc_switch)** for common fixed-code keyfobs (preferred)  
+    - **Raw** if your fob isn’t rc_switch-compatible
+  - Click **Start RF Learning** (or press **Input 1**).
+  - Relay 8 turns on during the 15 s learning window.
+  - Press the keyfob once or twice near the receiver.
+  - Learned status updates (rc_switch bits+code or raw count).
 
-10-second pulse on Relay2 when any stored keyfob (up to 16 slots) is heard
+- **Save / Transmit / Clear**
+  - Pick a **Slot** (1–16).
+  - **Learn → Save Slot** (waits 15 s for a new learn, then saves).
+  - **Transmit Slot** replays the saved code (using current pulse/rep settings).
+  - **Clear Slot** wipes just that slot.
+  - **Dump RF Slots** logs the full table for quick auditing.
 
-16-slot RC code book (save / transmit / clear from web UI)
+- **Runtime behavior**
+  - When a **received rc_switch** matches any saved slot (code match; **bits may be wildcarded** if saved as 0), **Relay 2** turns ON for **10 s** (then OFF).
 
-Slot status lines (Empty or bits/code)
+---
 
-UI sliders for RF Repeat and Pulse Length
+## Analog Inputs
 
-Safe on_boot turning Relay2 off
+- **A1 Voltage**  
+  Smoothed + calibrated to 0–5 V.  
+  - **> 2.05 V** → **Relay 1 ON**  
+  - **< 1.95 V** → **Relay 1 OFF**
+
+- **A2 Voltage**  
+  Smoothed + calibrated to 0–5 V.  
+  - Rising above threshold in the YAML will **transmit the learned RF** (you can adjust which transmit helper script to use / thresholds if you want A2 to also act as a trigger source).
+
+- Both A1 & A2 only **log** when their value **changes** ≥ 0.02 V, to keep logs clean.
+
+---
+
+## Wiring Notes
+
+- **PCF8574**:
+  - Outputs expander `0x24` → **Relays 1–8**
+  - Inputs expander `0x22` → **Inputs 1–8**
+- **Ethernet (LAN8720)** on GPIO23/18/17 (see YAML pins)
+- **433 MHz**:
+  - **RX** on **GPIO15** (pulldown)
+  - **TX** on **GPIO2**
+
+> If you see the receiver spamming noise, try better RF modules, a short antenna (e.g., ~17 cm for 433.92 MHz), and a clean 5 V supply to the receiver.
+
+---
+
+## Troubleshooting
+
+- **RF won’t learn**
+  - Ensure **RF Protocol = Auto (rc_switch)** first; if it still won’t learn, try **Raw**.
+  - Some “rolling code” or encrypted fobs won’t work (this firmware targets simple fixed-code fobs).
+- **Saved fob doesn’t trigger Relay 2**
+  - Use **Dump RF Slots**; compare logs to `rc_switch rx: code=… bits=…`.
+  - Bits are wildcarded if you saved a slot with `bits = 0`. If you saved a strict bit-length and it jitters, clear & re-save the slot (or set bits to 0 by editing).
+- **Ethernet errors**
+  - Double-check LAN8720 wiring and that nothing else uses those pins.
+- **CORS from custom UI**
+  - This firmware serves the built-in UI. If you host your own page elsewhere, either enable CORS on the device or serve it from the device to keep same-origin.
+
+---
+
+## Credits
+
+- Original KC868-A8 ESPHome project template and CI/Pages approach inspired by **hzkincony/kc868-a8**, which itself is generated from the **ESPHome project template**. :contentReference[oaicite:3]{index=3}
+- rc_switch protocols and raw timing support come from ESPHome’s `remote_receiver` / `remote_transmitter` components.
+
+---
+
+## License
+
+- See `LICENSE` in this repo.
