@@ -1,5 +1,5 @@
 substitutions:
-  name: hideaways
+  name: kc868-a8
 
 esphome:
   name: ${name}
@@ -25,7 +25,6 @@ preferences:
 web_server:
   port: 80
   version: 3
-  local: true
   include_internal: false
   sorting_groups:
     - id: grp_relays
@@ -148,23 +147,22 @@ remote_receiver:
             - logger.log: "Matched stored keyfob → Relay2 pulse (10s, restartable)"
             - script.execute: relay2_pulse_10s
 
-on_raw:
-  then:
-    - if:
-        condition:
-          lambda: |-
-            if (!id(is_learning)) return false;
-            if (id(rf_protocol_select).state != "Raw") return false;
-            return true;
-        then:
-          - lambda: |-
-              id(learned_raw).clear();
-              id(learned_raw).reserve(x.size());
-              for (auto v : x) { id(learned_raw).push_back(v); }
-              id(learned_type) = std::string("raw");
-              ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
-          - lambda: 'id(is_learning) = false;'
-          - switch.turn_off: relay8
+  on_raw:
+    then:
+      - if:
+          condition:
+            lambda: |-
+              if (!id(is_learning)) return false;
+              return id(rf_protocol_select).state == "Raw";
+          then:
+            - lambda: |-
+                id(learned_raw).clear();
+                id(learned_raw).reserve(x.size());
+                for (auto v : x) { id(learned_raw).push_back(v); }
+                id(learned_type) = std::string("raw");
+                ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
+            - lambda: 'id(is_learning) = false;'
+            - switch.turn_off: relay8
 
 remote_transmitter:
   pin: GPIO2
@@ -282,14 +280,13 @@ text:
       sorting_group_id: grp_advanced
       sorting_weight: 30
 
-  # Filled by "Export RF Slots" button (also logged)
+  # Filled by "Export RF Slots" buttons (also logged)
   - platform: template
     id: rf_export_text
-    name: "RF Export JSON"
+    name: "RF Export JSON/CSV"
     optimistic: true
     web_server:
       sorting_group_id: grp_advanced
-    # No user editing needed; leave as-is.
 
 text_sensor:
   - platform: template
@@ -360,7 +357,6 @@ switch:
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 3
-      inverted: true
     web_server:
       sorting_group_id: grp_relays
       sorting_weight: 40
@@ -675,7 +671,7 @@ button:
 
   - platform: template
     id: export_slots
-    name: "Export RF Slots"
+    name: "Export RF Slots (JSON)"
     on_press:
       - lambda: |-
           // Build compact JSON with only non-empty slots.
@@ -713,6 +709,44 @@ button:
       sorting_weight: 31
 
   - platform: template
+    id: export_slots_csv
+    name: "Export RF Slots (CSV)"
+    on_press:
+      - lambda: |-
+          std::string out;
+          auto append = [&](int idx, uint64_t c, uint8_t b, bool &first){
+            if (c == 0 || b == 0) return;
+            char buf[64];
+            snprintf(buf, sizeof(buf), "%s%d:%llu/%u", first ? "" : ",",
+                     idx, (unsigned long long)c, (unsigned)b);
+            out += buf;
+            first = false;
+          };
+          bool first = true;
+          append(1,  id(slot1_code),  id(slot1_bits),  first);
+          append(2,  id(slot2_code),  id(slot2_bits),  first);
+          append(3,  id(slot3_code),  id(slot3_bits),  first);
+          append(4,  id(slot4_code),  id(slot4_bits),  first);
+          append(5,  id(slot5_code),  id(slot5_bits),  first);
+          append(6,  id(slot6_code),  id(slot6_bits),  first);
+          append(7,  id(slot7_code),  id(slot7_bits),  first);
+          append(8,  id(slot8_code),  id(slot8_bits),  first);
+          append(9,  id(slot9_code),  id(slot9_bits),  first);
+          append(10, id(slot10_code), id(slot10_bits), first);
+          append(11, id(slot11_code), id(slot11_bits), first);
+          append(12, id(slot12_code), id(slot12_bits), first);
+          append(13, id(slot13_code), id(slot13_bits), first);
+          append(14, id(slot14_code), id(slot14_bits), first);
+          append(15, id(slot15_code), id(slot15_bits), first);
+          append(16, id(slot16_code), id(slot16_bits), first);
+
+          id(rf_export_text).publish_state(out.c_str());
+          ESP_LOGI("rf", "Export CSV: %s", out.c_str());
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 33
+
+  - platform: template
     id: import_slots
     name: "Import RF Slots"
     on_press:
@@ -747,7 +781,6 @@ button:
           size_t pos = 0;
           while ((pos = s.find("\"i\":", pos)) != std::string::npos) {
             int idx = 0; unsigned long long c = 0; unsigned b = 0;
-            // super-naive scan that survives basic whitespace
             int n = sscanf(s.c_str()+pos, "\"i\":%d%*[^0-9]\"code\":%llu%*[^0-9]\"bits\":%u", &idx, &c, &b);
             if (n == 3 && idx >= 1 && idx <= 16 && b <= 64) {
               set_slot(idx, c, b);
@@ -777,10 +810,18 @@ button:
           }
       - delay: 6s
       - logger.log: "Slots persisted."
-
     web_server:
       sorting_group_id: grp_advanced
       sorting_weight: 32
+
+  - platform: template
+    id: clear_all_slots_btn
+    name: "Clear ALL Slots"
+    on_press:
+      - script.execute: clear_all_slots_script
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 34
 
   # Visible: dump all slots to logs (Advanced card)
   - platform: template
@@ -948,6 +989,30 @@ script:
           ESP_LOGI("rf", "Cleared slot %d", s);
       - delay: 6s
       - logger.log: "Cleared from flash."
+
+  - id: clear_all_slots_script
+    mode: queued
+    then:
+      - lambda: |-
+          id(slot1_code)=0;  id(slot1_bits)=0;
+          id(slot2_code)=0;  id(slot2_bits)=0;
+          id(slot3_code)=0;  id(slot3_bits)=0;
+          id(slot4_code)=0;  id(slot4_bits)=0;
+          id(slot5_code)=0;  id(slot5_bits)=0;
+          id(slot6_code)=0;  id(slot6_bits)=0;
+          id(slot7_code)=0;  id(slot7_bits)=0;
+          id(slot8_code)=0;  id(slot8_bits)=0;
+          id(slot9_code)=0;  id(slot9_bits)=0;
+          id(slot10_code)=0; id(slot10_bits)=0;
+          id(slot11_code)=0; id(slot11_bits)=0;
+          id(slot12_code)=0; id(slot12_bits)=0;
+          id(slot13_code)=0; id(slot13_bits)=0;
+          id(slot14_code)=0; id(slot14_bits)=0;
+          id(slot15_code)=0; id(slot15_bits)=0;
+          id(slot16_code)=0; id(slot16_bits)=0;
+          ESP_LOGI("rf", "All RF slots cleared.");
+      - delay: 6s
+      - logger.log: "All slots persisted."
 
   - id: tx_slot_script
     mode: queued
