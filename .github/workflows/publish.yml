@@ -20,35 +20,73 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Build firmware & generate a complete manifest (bootloader/partitions/firmware + manifest.json)
       - name: Build firmware (complete manifest)
         id: build
         uses: esphome/build-action@v7
         with:
-          yaml-file: kc868-a8.yaml   # <-- change if your YAML has another name
+          yaml-file: kc868-a8.yaml
           complete-manifest: true
 
+      # Prepare the static site to deploy to GitHub Pages
       - name: Prepare static site
         run: |
-          NAME="${{ steps.build.outputs.name }}" # e.g. kc868-a8-ESP32
+          set -e
+          NAME="${{ steps.build.outputs.name }}"  # e.g., kc868-a8-ESP32
           mkdir -p site/"$NAME"
+          # Copy CI-produced manifest + binaries into /<NAME>/
           cp "$NAME"/* site/"$NAME"/
+
+          # Root flasher page (points to /<NAME>/manifest.json)
           cat > site/index.html <<'HTML'
           <!doctype html>
-          <html>
+          <html lang="en">
           <head>
             <meta charset="utf-8" />
             <meta name="viewport" content="width=device-width,initial-scale=1" />
-            <title>KC868-A8 Web Installer</title>
+            <title>KC868-A8 · Firmware Installer</title>
+            <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"></script>
+            <style>
+              body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; padding: 32px; max-width: 880px; margin: 0 auto; }
+              header { display:flex; align-items:center; gap:14px; margin-bottom: 10px; }
+              h1 { font-size: 1.6rem; margin: 0; }
+              .muted { color:#666; }
+              .card { border:1px solid #e7e7e9; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+              .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin: 10px 0; }
+              a.button { display:inline-block; padding:.5rem .75rem; border:1px solid #e7e7e9; border-radius:8px; text-decoration:none; }
+              footer { margin-top:22px; color:#666; font-size:.9rem; }
+            </style>
           </head>
           <body>
-            <h1>KC868-A8 Web Installer</h1>
-            <p>Connect your board via USB (Chrome/Edge desktop), then click Install.</p>
-            <esp-web-install-button manifest="./REPLACEME/manifest.json"></esp-web-install-button>
-            <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+            <header>
+              <h1>KC868-A8 · ESPHome Firmware Installer</h1>
+            </header>
+
+            <div class="card">
+              <p>Connect your board via USB (Chrome/Edge desktop) and click <strong>Install</strong>.</p>
+              <div class="row">
+                <!-- REPLACEME is swapped below to the CI-produced directory name -->
+                <esp-web-install-button manifest="./REPLACEME/manifest.json"></esp-web-install-button>
+                <a class="button" href="./app/">Open App UI</a>
+              </div>
+              <p class="muted">If you don’t see the prompt, ensure you’re on HTTPS and your browser supports WebSerial/WebUSB.</p>
+            </div>
+
+            <footer>
+              See README for wiring notes & troubleshooting.
+            </footer>
           </body>
           </html>
           HTML
+
+          # Replace placeholder with actual name, e.g. kc868-a8-ESP32
           sed -i "s#REPLACEME#$NAME#g" site/index.html
+
+          # Optionally ship your custom dashboard at /app/
+          if [ -d app ]; then
+            mkdir -p site/app
+            cp -r app/* site/app/
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
@@ -58,12 +96,9 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-
-    # ✅ THIS fixes your error
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
     steps:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
