@@ -79,12 +79,11 @@ remote_receiver:
     number: GPIO15
     mode: INPUT_PULLDOWN
   dump:
-    - rc_switch           # drop "raw" here to reduce log spam while testing
+    - rc_switch
     - raw
-  tolerance: 80%          # try 70–85%; higher accepts more jitter
-  filter: 100us           # try 200–350us; larger filters more noise
-  idle: 12ms              # try 10–15ms
-  buffer_size: 4kb        # default is small; larger helps in noisy environments
+  tolerance: 75%
+  filter: 100us
+  idle: 8ms
 
   # Learn rc_switch when in learning mode + Protocol=Auto
   on_rc_switch:
