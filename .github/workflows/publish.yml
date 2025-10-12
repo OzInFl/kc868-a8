@@ -28,14 +28,23 @@ jobs:
           yaml-file: kc868-a8.yaml
           complete-manifest: true
 
+      # List what the action produced (helps diagnose 404s)
+      - name: Debug build outputs
+        run: |
+          echo "NAME=${{ steps.build.outputs.name }}"
+          ls -la
+          ls -la "${{ steps.build.outputs.name }}"
+
       # Prepare the static site to deploy to GitHub Pages
       - name: Prepare static site
         run: |
-          set -e
+          set -euo pipefail
           NAME="${{ steps.build.outputs.name }}"  # e.g., kc868-a8-ESP32
-          mkdir -p site/"$NAME"
-          # Copy CI-produced manifest + binaries into /<NAME>/
-          cp "$NAME"/* site/"$NAME"/
+          echo "Preparing Pages content for $NAME"
+
+          mkdir -p "site/$NAME"
+          # Copy CI-produced manifest + binaries (incl. *.factory.bin / *.ota.bin)
+          cp -v "$NAME"/* "site/$NAME"/
 
           # Root flasher page (points to /<NAME>/manifest.json)
           cat > site/index.html <<'HTML'
@@ -85,8 +94,11 @@ jobs:
           # Optionally ship your custom dashboard at /app/
           if [ -d app ]; then
             mkdir -p site/app
-            cp -r app/* site/app/
+            cp -rv app/* site/app/ || true
           fi
+
+          echo "Final site tree:"
+          find site -maxdepth 2 -type f -print
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
