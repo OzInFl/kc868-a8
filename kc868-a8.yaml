@@ -397,7 +397,7 @@ switch:
       sorting_group_id: grp_relays
       sorting_weight: 80
 
-    - platform: template
+  - platform: template
     id: log_pause
     name: "Pause Logs"
     restore_state: false
