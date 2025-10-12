@@ -390,14 +390,13 @@ switch:
       sorting_group_id: grp_relays
       sorting_weight: 80
 
-  # --- Pause/Resume logging (UI toggle) ---
   - platform: template
     id: log_pause
     name: "Pause Logs"
-    restore_state: false
+    restore_mode: RESTORE_DEFAULT_OFF   # <- replaces deprecated restore_state
     optimistic: true
     on_turn_on:
-      - logger.set_level: WARN
+      - logger.set_level: WARN          # use NONE for total silence
       - logger.log: "Logging paused (level=WARN)"
     on_turn_off:
       - logger.set_level: DEBUG
