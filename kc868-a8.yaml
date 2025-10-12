@@ -82,7 +82,7 @@ remote_receiver:
     - rc_switch           # drop "raw" here to reduce log spam while testing
     - raw
   tolerance: 80%          # try 70–85%; higher accepts more jitter
-  filter: 250us           # try 200–350us; larger filters more noise
+  filter: 100us           # try 200–350us; larger filters more noise
   idle: 12ms              # try 10–15ms
   buffer_size: 4kb        # default is small; larger helps in noisy environments
 
