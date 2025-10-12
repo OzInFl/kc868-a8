@@ -976,6 +976,26 @@ script:
                 protocol: { pulse_length: 433, sync: [1,23], zero: [1,2], one: [2,1] }
                 repeat: !lambda 'return (uint32_t) id(rf_repeat).state;'
 
+
+      # --- Pause/Resume logging (UI toggle) ---
+      
+switch:
+  - platform: template
+    id: log_pause
+    name: "Pause Logs"
+    restore_state: false
+    optimistic: true
+    on_turn_on:
+      - logger.set_level: WARN     # Pause most logs (INFO/DEBUG suppressed)
+      - logger.log: "Logging paused (level=WARN)"
+    on_turn_off:
+      - logger.set_level: DEBUG    # Resume verbose logs
+      - logger.log: "Logging resumed (level=DEBUG)"
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 20
+
+
 # ---------------- Logging / API ----------------
 logger:
   level: DEBUG
