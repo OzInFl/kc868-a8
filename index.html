@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KC868-A8 Firmware Installer</title>
+  <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    header { display:flex; align-items:center; gap:1rem; margin-bottom:1rem; }
+    h1 { margin: 0; font-size: 1.6rem; }
+    .card { border: 1px solid #e7e7e9; border-radius: 12px; padding: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+    .muted { color: #666; }
+    footer { margin-top: 2rem; color: #666; font-size: 0.9rem; }
+    a.button { display:inline-block; padding:.5rem .75rem; border:1px solid #e7e7e9; border-radius:8px; text-decoration:none; }
+  </style>
+</head>
+<body>
+  <header>
+    <img alt="KC868-A8" src="https://raw.githubusercontent.com/OzInFl/kc868-a8/main/assets/icon.png" width="48" height="48"
+         onerror="this.style.display='none'">
+    <div>
+      <h1>KC868-A8 · ESPHome Firmware Installer</h1>
+      <div class="muted">Flash the latest build to your Kincony KC868-A8 from your browser.</div>
+    </div>
+  </header>
+
+  <div class="card">
+    <p>Connect your KC868-A8 via USB (or WebSerial) and click Install. Chrome/Edge on desktop recommended.</p>
+    <div class="row">
+      <esp-web-install-button manifest="manifest.json"></esp-web-install-button>
+      <a class="button" href="./app/">Go to App UI</a>
+    </div>
+    <p class="muted" style="margin-top:.75rem">
+      If you don’t see the install prompt, make sure you’re on HTTPS and using a browser that supports WebSerial/WebUSB.
+    </p>
+  </div>
+
+  <footer>
+    Need help? See the README for wiring notes & troubleshooting.
+  </footer>
+</body>
+</html>
