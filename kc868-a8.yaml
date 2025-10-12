@@ -1,5 +1,5 @@
 substitutions:
-  name: kc868-a8
+  name: hideaways
 
 esphome:
   name: ${name}
@@ -85,9 +85,9 @@ remote_receiver:
   filter: 100us
   idle: 8ms
 
-  # Learn rc_switch when in learning mode + Protocol=Auto
   on_rc_switch:
     then:
+      # Learn rc_switch when in learning mode + Protocol=Auto
       - if:
           condition:
             lambda: |-
@@ -148,24 +148,23 @@ remote_receiver:
             - logger.log: "Matched stored keyfob → Relay2 pulse (10s, restartable)"
             - script.execute: relay2_pulse_10s
 
-  # Learn RAW when in learning mode + Protocol=Raw
-  on_raw:
-    then:
-      - if:
-          condition:
-            lambda: |-
-              if (!id(is_learning)) return false;
-              if (id(rf_protocol_select).state != "Raw") return false;
-              return true;
-          then:
-            - lambda: |-
-                id(learned_raw).clear();
-                id(learned_raw).reserve(x.size());
-                for (auto v : x) { id(learned_raw).push_back(v); }
-                id(learned_type) = std::string("raw");
-                ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
-            - lambda: 'id(is_learning) = false;'
-            - switch.turn_off: relay8
+on_raw:
+  then:
+    - if:
+        condition:
+          lambda: |-
+            if (!id(is_learning)) return false;
+            if (id(rf_protocol_select).state != "Raw") return false;
+            return true;
+        then:
+          - lambda: |-
+              id(learned_raw).clear();
+              id(learned_raw).reserve(x.size());
+              for (auto v : x) { id(learned_raw).push_back(v); }
+              id(learned_type) = std::string("raw");
+              ESP_LOGI("rf", "Learned RAW timings: count=%u", (unsigned) id(learned_raw).size());
+          - lambda: 'id(is_learning) = false;'
+          - switch.turn_off: relay8
 
 remote_transmitter:
   pin: GPIO2
@@ -216,7 +215,7 @@ globals:
   - { id: slot15_bits, type: uint8_t, restore_value: true, initial_value: '0' }
   - { id: slot16_bits, type: uint8_t, restore_value: true, initial_value: '0' }
 
-# ---------------- UI controls (selects, numbers, status) ----------------
+# ---------------- UI controls (selects, numbers, status, text IO) ----------------
 select:
   - platform: template
     id: rf_protocol_select
@@ -273,6 +272,25 @@ number:
       sorting_group_id: grp_rf_settings
       sorting_weight: 10
 
+text:
+  # Paste JSON or CSV here, then press "Import RF Slots"
+  - platform: template
+    id: rf_import_text
+    name: "RF Import JSON/CSV"
+    optimistic: true
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 30
+
+  # Filled by "Export RF Slots" button (also logged)
+  - platform: template
+    id: rf_export_text
+    name: "RF Export JSON"
+    optimistic: true
+    web_server:
+      sorting_group_id: grp_advanced
+    # No user editing needed; leave as-is.
+
 text_sensor:
   - platform: template
     id: learned_status
@@ -301,7 +319,7 @@ pcf8574:
   - id: pcf8574_hub_in_1
     address: 0x22
 
-# ---------------- Relays + Log Pause switch ----------------
+# ---------------- Relays + Log Pause + Analog Log switches ----------------
 switch:
   - platform: gpio
     id: relay1
@@ -342,6 +360,7 @@ switch:
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 3
+      inverted: true
     web_server:
       sorting_group_id: grp_relays
       sorting_weight: 40
@@ -390,13 +409,14 @@ switch:
       sorting_group_id: grp_relays
       sorting_weight: 80
 
+  # --- Pause/Resume logging (UI toggle) ---
   - platform: template
     id: log_pause
     name: "Pause Logs"
-    restore_mode: RESTORE_DEFAULT_OFF   # <- replaces deprecated restore_state
+    restore_mode: RESTORE_DEFAULT_OFF
     optimistic: true
     on_turn_on:
-      - logger.set_level: WARN          # use NONE for total silence
+      - logger.set_level: WARN
       - logger.log: "Logging paused (level=WARN)"
     on_turn_off:
       - logger.set_level: DEBUG
@@ -405,7 +425,21 @@ switch:
       sorting_group_id: grp_advanced
       sorting_weight: 20
 
-# ---------------- ADC with threshold + change-only logging ----------------
+  # --- Analog Logging ON/OFF ---
+  - platform: template
+    id: analog_log_enable
+    name: "Analog Logging"
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
+    on_turn_on:
+      - logger.log: "Analog logging ENABLED"
+    on_turn_off:
+      - logger.log: "Analog logging DISABLED"
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 25
+
+# ---------------- ADC with threshold + change-only logging (gated by switch) ----------------
 sensor:
   - platform: adc
     id: a1_volts
@@ -424,6 +458,7 @@ sensor:
     on_value:
       then:
         - lambda: |-
+            if (!id(analog_log_enable).state) return;
             const float eps = 0.02f;
             if (isnan(id(last_a1_logged)) || fabsf(x - id(last_a1_logged)) >= eps) {
               id(last_a1_logged) = x;
@@ -467,6 +502,7 @@ sensor:
     on_value:
       then:
         - lambda: |-
+            if (!id(analog_log_enable).state) return;
             const float eps = 0.02f;
             if (isnan(id(last_a2_logged)) || fabsf(x - id(last_a2_logged)) >= eps) {
               id(last_a2_logged) = x;
@@ -636,6 +672,115 @@ button:
     web_server:
       sorting_group_id: grp_rf_controls
       sorting_weight: 50
+
+  - platform: template
+    id: export_slots
+    name: "Export RF Slots"
+    on_press:
+      - lambda: |-
+          // Build compact JSON with only non-empty slots.
+          std::string out = "{\"slots\":[";
+          auto append = [&](int idx, uint64_t c, uint8_t b, bool &first){
+            if (c == 0 || b == 0) return;
+            char buf[128];
+            snprintf(buf, sizeof(buf), "%s{\"i\":%d,\"code\":%llu,\"bits\":%u}",
+                     first ? "" : ",", idx, (unsigned long long)c, (unsigned)b);
+            out += buf;
+            first = false;
+          };
+          bool first = true;
+          append(1,  id(slot1_code),  id(slot1_bits),  first);
+          append(2,  id(slot2_code),  id(slot2_bits),  first);
+          append(3,  id(slot3_code),  id(slot3_bits),  first);
+          append(4,  id(slot4_code),  id(slot4_bits),  first);
+          append(5,  id(slot5_code),  id(slot5_bits),  first);
+          append(6,  id(slot6_code),  id(slot6_bits),  first);
+          append(7,  id(slot7_code),  id(slot7_bits),  first);
+          append(8,  id(slot8_code),  id(slot8_bits),  first);
+          append(9,  id(slot9_code),  id(slot9_bits),  first);
+          append(10, id(slot10_code), id(slot10_bits), first);
+          append(11, id(slot11_code), id(slot11_bits), first);
+          append(12, id(slot12_code), id(slot12_bits), first);
+          append(13, id(slot13_code), id(slot13_bits), first);
+          append(14, id(slot14_code), id(slot14_bits), first);
+          append(15, id(slot15_code), id(slot15_bits), first);
+          append(16, id(slot16_code), id(slot16_bits), first);
+          out += "]}";
+          id(rf_export_text).publish_state(out.c_str());
+          ESP_LOGI("rf", "Export JSON: %s", out.c_str());
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 31
+
+  - platform: template
+    id: import_slots
+    name: "Import RF Slots"
+    on_press:
+      - lambda: |-
+          std::string s = id(rf_import_text).state;
+          int imported = 0;
+
+          auto set_slot = [&](int idx, unsigned long long c, unsigned b){
+            switch (idx) {
+              case 1:  id(slot1_code)=c;  id(slot1_bits)=b;  break;
+              case 2:  id(slot2_code)=c;  id(slot2_bits)=b;  break;
+              case 3:  id(slot3_code)=c;  id(slot3_bits)=b;  break;
+              case 4:  id(slot4_code)=c;  id(slot4_bits)=b;  break;
+              case 5:  id(slot5_code)=c;  id(slot5_bits)=b;  break;
+              case 6:  id(slot6_code)=c;  id(slot6_bits)=b;  break;
+              case 7:  id(slot7_code)=c;  id(slot7_bits)=b;  break;
+              case 8:  id(slot8_code)=c;  id(slot8_bits)=b;  break;
+              case 9:  id(slot9_code)=c;  id(slot9_bits)=b;  break;
+              case 10: id(slot10_code)=c; id(slot10_bits)=b; break;
+              case 11: id(slot11_code)=c; id(slot11_bits)=b; break;
+              case 12: id(slot12_code)=c; id(slot12_bits)=b; break;
+              case 13: id(slot13_code)=c; id(slot13_bits)=b; break;
+              case 14: id(slot14_code)=c; id(slot14_bits)=b; break;
+              case 15: id(slot15_code)=c; id(slot15_bits)=b; break;
+              case 16: id(slot16_code)=c; id(slot16_bits)=b; break;
+              default: return;
+            }
+            imported++;
+          };
+
+          // Try to parse JSON entries like: {"i":1,"code":123,"bits":24}
+          size_t pos = 0;
+          while ((pos = s.find("\"i\":", pos)) != std::string::npos) {
+            int idx = 0; unsigned long long c = 0; unsigned b = 0;
+            // super-naive scan that survives basic whitespace
+            int n = sscanf(s.c_str()+pos, "\"i\":%d%*[^0-9]\"code\":%llu%*[^0-9]\"bits\":%u", &idx, &c, &b);
+            if (n == 3 && idx >= 1 && idx <= 16 && b <= 64) {
+              set_slot(idx, c, b);
+            }
+            pos += 4;  // advance
+          }
+
+          // If nothing found, try CSV format: 1:123/24,2:456/24
+          if (imported == 0 && !s.empty()) {
+            size_t start = 0;
+            while (start < s.size()) {
+              size_t comma = s.find(',', start);
+              std::string tok = s.substr(start, (comma == std::string::npos ? s.size() : comma) - start);
+              int idx = 0; unsigned long long c = 0; unsigned b = 0;
+              if (sscanf(tok.c_str(), "%d:%llu/%u", &idx, &c, &b) == 3 && idx >= 1 && idx <= 16 && b <= 64) {
+                set_slot(idx, c, b);
+              }
+              if (comma == std::string::npos) break;
+              start = comma + 1;
+            }
+          }
+
+          if (imported > 0) {
+            ESP_LOGI("rf", "Imported %d slot(s).", imported);
+          } else {
+            ESP_LOGW("rf", "No valid entries found in RF Import text.");
+          }
+      - delay: 6s
+      - logger.log: "Slots persisted."
+
+    web_server:
+      sorting_group_id: grp_advanced
+      sorting_weight: 32
 
   # Visible: dump all slots to logs (Advanced card)
   - platform: template
