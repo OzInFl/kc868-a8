@@ -8,9 +8,17 @@ esphome:
     name: kincony.kc868-a8
     version: "1.02"
   on_boot:
-    priority: 600
+    # Run after peripherals are initialized so PCF8574 pins exist
+    priority: 800
     then:
+      - switch.turn_off: relay1
       - switch.turn_off: relay2
+      - switch.turn_off: relay3
+      - switch.turn_off: relay4
+      - switch.turn_off: relay5
+      - switch.turn_off: relay6
+      - switch.turn_off: relay7
+      - switch.turn_off: relay8
 
 esp32:
   board: esp32dev
