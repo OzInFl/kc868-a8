@@ -360,6 +360,7 @@ switch:
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 3
+      inverted: true
     web_server:
       sorting_group_id: grp_relays
       sorting_weight: 40
