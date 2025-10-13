@@ -275,6 +275,7 @@ text:
   - platform: template
     id: rf_import_text
     name: "RF Import JSON/CSV"
+    mode: text
     optimistic: true
     web_server:
       sorting_group_id: grp_advanced
@@ -284,9 +285,11 @@ text:
   - platform: template
     id: rf_export_text
     name: "RF Export JSON/CSV"
+    mode: text
     optimistic: true
     web_server:
       sorting_group_id: grp_advanced
+
 
 text_sensor:
   - platform: template
