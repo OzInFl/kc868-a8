@@ -1,12 +1,12 @@
 substitutions:
-  name: kc868-a8
+  name: hideaways
 
 esphome:
   name: ${name}
   name_add_mac_suffix: true
   project:
     name: kincony.kc868-a8
-    version: "1"
+    version: "1.02"
   on_boot:
     priority: 600
     then:
@@ -323,7 +323,7 @@ pcf8574:
 switch:
   - platform: gpio
     id: relay1
-    name: "Relay 1"
+    name: "Relay 1 (BookShelf Door Unlocked)"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 0
@@ -334,7 +334,7 @@ switch:
 
   - platform: gpio
     id: relay2
-    name: "Relay 2"
+    name: "Relay 2 (RF Trigger)"
     pin:
       pcf8574: pcf8574_hub_out_1
       number: 1
