@@ -1,4 +1,4 @@
-# KC868-A8 · ESPHome firmware (with RF learning, 16 slots, and modern Web UI)
+# Kincony KC868-A8 · ESPHome firmware (with RF learning, 16 slots, and modern Web UI)
 
 <p align="center">
   <a href="https://ozinfl.github.io/kc868-a8/">
